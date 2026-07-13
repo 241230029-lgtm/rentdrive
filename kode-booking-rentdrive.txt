@@ -1,0 +1,1228 @@
+﻿============================================================
+FILE: app\Http\Controllers\SewaController.php
+============================================================
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Kendaraan;
+use App\Models\Sewa;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
+use Carbon\Carbon;
+use Illuminate\Support\Str;
+
+class SewaController extends Controller
+{
+    /**
+     * 1. ALUR PELANGGAN: Memproses pengajuan booking online dari pelanggan
+     * Validasi anti-bentrok jadwal berjalan secara rahasia di sini.
+     */
+    public function simpanBookingOnline(Request $request)
+    {
+        // Validasi Input Tanggal Sesuai Aturan Bisnis
+        $request->validate([
+            'kendaraan_id'  => 'required|exists:kendaraans,id',
+            'tanggal_mulai' => 'required|date|after_or_equal:today',
+            'tanggal_selesai'=> 'required|date|after:tanggal_mulai',
+        ]);
+
+        $inputMulai = $request->tanggal_mulai;
+        $inputSelesai = $request->tanggal_selesai;
+
+        // Ambil data spesifikasi kendaraan
+        $kendaraan = Kendaraan::findOrFail($request->kendaraan_id);
+
+        // Proteksi awal: Cek jika status unit dinonaktifkan secara manual oleh admin
+        if (in_array($kendaraan->status, ['perbaikan', 'tidak_aktif'])) {
+            return back()->with('error', 'Maaf, kendaraan saat ini sedang tidak dapat digunakan untuk operasional.');
+        }
+
+        // LOGIKA RAHASIA BACKEND: Menghitung sisa unit tersedia pada rentang tanggal terpilih
+        $jumlahUnitTerpakai = Sewa::where('kendaraan_id', $kendaraan->id)
+            ->whereNotIn('status', ['dibatalkan', 'ditolak_pembayaran', 'selesai'])
+            ->where(function ($query) use ($inputMulai, $inputSelesai) {
+                $query->where('tanggal_mulai', '<=', $inputSelesai)
+                      ->where('tanggal_selesai', '>=', $inputMulai);
+            })
+            ->count();
+
+        // Tolak jika kuota pemesanan online + offline sudah memenuhi kapasitas unit fisik perusahaan
+        if ($jumlahUnitTerpakai >= $kendaraan->jumlah_unit) {
+            return back()->with('error', 'Maaf, kendaraan tidak tersedia pada rentang tanggal yang Anda pilih. Silakan pilih jadwal lain.');
+        }
+
+        // Hitung Masa Durasi Sewa & Akumulasi Biaya
+        $mulai = Carbon::parse($inputMulai);
+        $selesai = Carbon::parse($inputSelesai);
+        $durasiHari = $mulai->diffInDays($selesai);
+
+        $totalHarga = $durasiHari * $kendaraan->harga_per_hari;
+
+        // Otomatisasi nomor booking sementara (Audit Trail aman)
+        $nomorBooking = 'BK-' . Carbon::now()->format('Ymd') . '-' . strtoupper(Str::random(5));
+
+        // Buat data dengan status awal 'menunggu_pembayaran'
+        Sewa::create([
+            'nomor_booking'   => $nomorBooking,
+            'user_id'         => Auth::id(), // ðŸ‘ˆ Sudah diperbaiki menggunakan Facade (Bebas Eror Intelephense)
+            'kendaraan_id'    => $kendaraan->id,
+            'jenis_booking'   => 'online',
+            'tanggal_mulai'   => $inputMulai,
+            'tanggal_selesai' => $inputSelesai,
+            'total_harga'     => $totalHarga,
+            'status'          => 'menunggu_pembayaran',
+        ]);
+
+        return redirect()->route('pelanggan.dashboard')->with('success', 'Booking berhasil dibuat! Nomor Pemesanan Anda: ' . $nomorBooking . '. Silakan lakukan unggah bukti pembayaran.');
+    }
+
+    /**
+     * 2. ALUR PELANGGAN: Mengunggah bukti pembayaran (Dummy Payment)
+     * Mengubah status dari 'menunggu_pembayaran' atau 'ditolak_pembayaran' menjadi 'menunggu_verifikasi_pembayaran'
+     */
+    public function unggahBuktiPembayaran(Request $request, int $id)
+    {
+        // Validasi File Bukti Transfer (Jenis file, ukuran maksimal 2MB)
+        $request->validate([
+            'bukti_pembayaran' => 'required|image|mimes:jpeg,png,jpg|max:2048',
+        ]);
+
+        // Pastikan transaksi ini benar-benar milik pelanggan yang sedang login
+        $sewa = Sewa::where('id', $id)->where('user_id', Auth::id())->firstOrFail();
+
+        // Ambil file dari request
+        if ($request->hasFile('bukti_pembayaran')) {
+
+            // Hapus file bukti lama jika pelanggan melakukan unggah ulang akibat penolakan sebelumnya
+            if ($sewa->bukti_pembayaran) {
+                Storage::disk('public')->delete($sewa->bukti_pembayaran);
+            }
+
+            // Simpan file ke dalam folder storage/app/public/bukti_pembayaran
+            $namaFile = $request->file('bukti_pembayaran')->store('bukti_pembayaran', 'public');
+
+            // Perbarui status transaksi di database menuju antrean verifikasi Admin
+            $sewa->update([
+                'bukti_pembayaran' => $namaFile,
+                'status' => 'menunggu_verifikasi_pembayaran'
+            ]);
+
+            return redirect()->route('pelanggan.dashboard')->with('success', 'Bukti pembayaran berhasil diunggah! Menunggu proses verifikasi oleh Administrator.');
+        }
+
+        return back()->with('error', 'Gagal memproses file bukti pembayaran. Silakan coba kembali.');
+    }
+
+
+    /**
+     * 4. ALUR ADMINISTRATOR: Pencatatan Transaksi Langsung (Booking Walk-In Offline)
+     * Langsung disetujui operasional dan dicatat ke log aktivitas untuk audit Owner.
+     */
+    public function simpanBookingWalkIn(Request $request)
+    {
+        // Validasi input data penyewa offline dan jadwal kontrak sewa
+        $request->validate([
+            'pelanggan_id'  => 'required|exists:users,id', // Pelanggan dipilih dari daftar user terdaftar
+            'kendaraan_id'  => 'required|exists:kendaraans,id',
+            'tanggal_mulai' => 'required|date|after_or_equal:today',
+            'tanggal_selesai'=> 'required|date|after:tanggal_mulai',
+        ]);
+
+        $inputMulai = $request->tanggal_mulai;
+        $inputSelesai = $request->tanggal_selesai;
+
+        // Ambil data spesifikasi kendaraan
+        $kendaraan = Kendaraan::findOrFail($request->kendaraan_id);
+
+        // Proteksi awal: Cek jika unit dalam perbaikan atau non-aktif
+        if (in_array($kendaraan->status, ['perbaikan', 'tidak_aktif'])) {
+            return back()->with('error', 'Gagal. Kendaraan saat ini sedang dalam masa perbaikan atau tidak aktif.');
+        }
+
+        // LOGIKA RAHASIA BACKEND: Cek bentrok jadwal kuota multi-unit fisik perusahaan
+        $jumlahUnitTerpakai = Sewa::where('kendaraan_id', $kendaraan->id)
+            ->whereNotIn('status', ['dibatalkan', 'ditolak_pembayaran', 'selesai'])
+            ->where(function ($query) use ($inputMulai, $inputSelesai) {
+                $query->where('tanggal_mulai', '<=', $inputSelesai)
+                      ->where('tanggal_selesai', '>=', $inputMulai);
+            })
+            ->count();
+
+        if ($jumlahUnitTerpakai >= $kendaraan->jumlah_unit) {
+            return back()->with('error', 'Gagal. Kendaraan tidak tersedia pada rentang tanggal tersebut karena kuota unit fisik sudah penuh.');
+        }
+
+        // Kalkulasi Durasi Hari & Total Nominal Pembayaran Tunai
+        $mulai = Carbon::parse($inputMulai);
+        $selesai = Carbon::parse($inputSelesai);
+        $durasiHari = $mulai->diffInDays($selesai);
+        $totalHarga = $durasiHari * $kendaraan->harga_per_hari;
+
+        // Generate Nomor Booking Manual Offline
+        $nomorBooking = 'WI-' . Carbon::now()->format('Ymd') . '-' . strtoupper(Str::random(5));
+
+        // Buat data transaksi dengan status langsung 'disetujui_operasional'
+        $sewa = Sewa::create([
+            'nomor_booking'   => $nomorBooking,
+            'user_id'         => $request->pelanggan_id, // Terikat ke user pelanggan pilihan admin
+            'kendaraan_id'    => $kendaraan->id,
+            'jenis_booking'   => 'walk_in', // Penanda jenis transaksi offline
+            'tanggal_mulai'   => $inputMulai,
+            'tanggal_selesai' => $inputSelesai,
+            'total_harga'     => $totalHarga,
+            'bukti_pembayaran'=> 'WALK_IN_CASH', // Penanda dibayar tunai di kasir
+            'status'          => 'disetujui_operasional',
+        ]);
+
+        // AMAN UNTUK OWNER: Catat log aktivitas tindakan admin
+        $pelanggan = \App\Models\User::find($request->pelanggan_id);
+        \App\Models\LogAktivitas::create([
+            'user_id' => Auth::id(), // ID Admin pengeksekusi transaksi offline
+            'jenis_aktivitas' => 'Input Booking Walk-In',
+            'deskripsi' => 'Admin membuat booking Walk-In langsung untuk Nomor ' . $nomorBooking . ' (Pelanggan: ' . $pelanggan->name . ', Kendaraan: ' . $kendaraan->nama_kendaraan . ')',
+            'alamat_ip' => $request->ip(),
+        ]);
+
+        return redirect()->route('admin.booking.index')->with('success', 'Transaksi Walk-In berhasil dicatat dengan Nomor: ' . $nomorBooking . '. Status operasional aktif.');
+    }
+
+    /**
+     * 5. ALUR ADMINISTRATOR: Penyelesaian Pengembalian Kendaraan & Hitung Otomatis Denda
+     * Mengubah status transaksi menjadi 'selesai' dan mencatat log audit untuk Owner.
+     */
+    public function selesaikanPengembalianAdmin(Request $request, int $id)
+    {
+        // 1. Validasi input pemeriksaan fisik dari Admin di lapangan
+        $request->validate([
+            'tanggal_kembali_aktual'    => 'required|date|after_or_equal:tanggal_mulai',
+            'kondisi_kendaraan_kembali' => 'required|string',
+            'foto_kondisi_kembali'      => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
+            'kilometer_kembali'         => 'required|integer',
+            'denda_kerusakan'           => 'required|integer|min:0', // Diinput manual oleh admin berdasarkan lecet fisik
+        ]);
+
+        // Ambil data transaksi sewa beserta relasinya
+        $sewa = Sewa::with('kendaraan', 'user')->findOrFail($id);
+
+        // 2. LOGIKA OTOMATISASI: Hitung Denda Keterlambatan
+        $tanggalSelesaiKontrak = Carbon::parse($sewa->tanggal_selesai);
+        $tanggalKembaliAktual  = Carbon::parse($request->tanggal_kembali_aktual);
+
+        $dendaKeterlambatan = 0;
+
+        // Jika tanggal kembali aktual melewati tanggal selesai kontrak sewa
+        if ($tanggalKembaliAktual->gt($tanggalSelesaiKontrak)) {
+            $hariKeterlambatan = $tanggalKembaliAktual->diffInDays($tanggalSelesaiKontrak);
+            // Denda per hari = harga sewa per hari kendaraan tersebut
+            $dendaKeterlambatan = $hariKeterlambatan * $sewa->kendaraan->harga_per_hari;
+        }
+
+        // 3. Akumulasi Total Denda
+        $dendaKerusakan = $request->denda_kerusakan;
+        $totalDenda = $dendaKeterlambatan + $dendaKerusakan;
+
+        // 4. Proses Upload Foto Kondisi Fisik Mobil Saat Dikembalikan (Jika Ada)
+        $namaFotoKembali = $sewa->foto_kondisi_kembali;
+        if ($request->hasFile('foto_kondisi_kembali')) {
+            $namaFotoKembali = $request->file('foto_kondisi_kembali')->store('kondisi_kembali', 'public');
+        }
+
+        // 5. Perbarui Data Transaksi dan Ubah Status Menjadi Selesai
+        $sewa->update([
+            'tanggal_kembali_aktual'    => $request->tanggal_kembali_aktual,
+            'kondisi_kendaraan_kembali' => $request->kondisi_kendaraan_kembali,
+            'foto_kondisi_kembali'      => $namaFotoKembali,
+            'kilometer_kembali'         => $request->kilometer_kembali,
+            'denda_keterlambatan'       => $dendaKeterlambatan,
+            'denda_kerusakan'           => $dendaKerusakan,
+            'total_denda'               => $totalDenda,
+            'status'                    => 'selesai', // Siklus sewa dinyatakan ditutup
+        ]);
+
+        // 6. AMAN UNTUK OWNER: Catat log aktivitas tindakan penyelesaian oleh admin
+        \App\Models\LogAktivitas::create([
+            'user_id' => Auth::id(), // ID Admin penanggung jawab lapangan
+            'jenis_aktivitas' => 'Penyelesaian Pengembalian',
+            'deskripsi' => 'Admin menyelesaikan transaksi ' . $sewa->nomor_booking . '. Total Denda: Rp ' . number_format($totalDenda, 0, ',', '.') . ' (Keterlambatan: Rp ' . number_format($dendaKeterlambatan, 0, ',', '.') . ', Kerusakan: Rp ' . number_format($dendaKerusakan, 0, ',', '.') . ')',
+            'alamat_ip' => $request->ip(),
+        ]);
+
+        return redirect()->route('admin.pengembalian.index')->with('success', 'Proses pengembalian berhasil diproses. Transaksi ' . $sewa->nomor_booking . ' dinyatakan Selesai.');
+    }
+}
+
+============================================================
+FILE: app\Models\Sewa.php
+============================================================
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+class Sewa extends Model
+{
+    protected $fillable = [
+        'nomor_booking',
+        'user_id',
+        'kendaraan_id',
+        'jenis_booking',
+        'tanggal_mulai',
+        'tanggal_selesai',
+        'total_harga',
+        'bukti_pembayaran',
+        'tanggal_kembali_aktual',
+        'kondisi_kendaraan_kembali',
+        'foto_kondisi_kembali',
+        'kilometer_kembali',
+        'denda_keterlambatan',
+        'denda_kerusakan',
+        'total_denda',
+        'alasan_penolakan',
+        'status',
+    ];
+
+    /**
+     * Relasi: Transaksi sewa ini DIMILIKI OLEH seorang User (Pelanggan).
+     */
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    /**
+     * Relasi: Transaksi sewa ini MELIBATKAN sebuah Kendaraan.
+     */
+    public function kendaraan(): BelongsTo
+    {
+        return $this->belongsTo(Kendaraan::class);
+    }
+}
+
+============================================================
+FILE: app\Models\Kendaraan.php
+============================================================
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+
+class Kendaraan extends Model
+{
+    // Daftarkan semua kolom tabel kendaraans sesuai migration
+    protected $fillable = [
+        'nama_kendaraan',
+        'merek',
+        'warna',
+        'tahun_pembuatan',
+        'transmisi',
+        'kapasitas_penumpang',
+        'harga_per_hari',
+        'jumlah_unit',
+        'foto_kendaraan',
+        'fasilitas',
+        'deskripsi_kendaraan',
+        'plat_nomor',
+        'status',
+    ];
+
+    /**
+     * Relasi: Satu Kendaraan bisa tercatat di BANYAK transaksi sewa (histori transaksi).
+     */
+    public function sewas(): HasMany
+    {
+        return $this->hasMany(Sewa::class);
+    }
+}
+
+============================================================
+FILE: app\Models\User.php
+============================================================
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Notifications\Notifiable;
+
+class User extends Authenticatable
+{
+    use HasFactory;
+    use Notifiable;
+
+    /**
+     * Kolom yang dapat diisi.
+     */
+    protected $fillable = [
+        'name',
+        'email',
+        'password',
+        'role',
+    ];
+
+    /**
+     * Kolom yang disembunyikan.
+     */
+    protected $hidden = [
+        'password',
+        'remember_token',
+    ];
+
+    /**
+     * Konversi tipe data kolom.
+     */
+    protected function casts(): array
+    {
+        return [
+            'email_verified_at' => 'datetime',
+            'password' => 'hashed',
+        ];
+    }
+
+    /**
+     * Memeriksa role pengguna.
+     */
+    public function hasRole(string $role): bool
+    {
+        return $this->role === $role;
+    }
+}
+
+============================================================
+FILE: database\migrations\2026_07_11_150437_create_sewas_table.php
+============================================================
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    /**
+     * Run the migrations.
+     */
+public function up(): void
+{
+    Schema::create('sewas', function (Blueprint $table) {
+        $table->id();
+        $table->string('nomor_booking')->unique();
+        $table->foreignId('user_id')->constrained()->onDelete('cascade');
+        $table->foreignId('kendaraan_id')->constrained()->onDelete('cascade');
+        $table->enum('jenis_booking', ['online', 'walk_in'])->default('online');
+
+        // Logika Waktu kontrak & Biaya Utama
+        $table->date('tanggal_mulai');
+        $table->date('tanggal_selesai');
+        $table->integer('total_harga');
+        $table->string('bukti_pembayaran')->nullable(); // Dummy payment file
+
+        // Data Pengembalian Aktual (Pemeriksaan Lapangan oleh Admin)
+        $table->date('tanggal_kembali_aktual')->nullable();
+        $table->text('kondisi_kendaraan_kembali')->nullable();
+        $table->string('foto_kondisi_kembali')->nullable();
+        $table->integer('kilometer_kembali')->nullable();
+        $table->integer('denda_keterlambatan')->default(0);
+        $table->integer('denda_kerusakan')->default(0);
+        $table->integer('total_denda')->default(0);
+        $table->text('alasan_penolakan')->nullable(); // Jika Admin menolak transaksi
+
+        // Alur Kendali Status Terintegrasi (RBAC)
+        $table->enum('status', [
+            'menunggu_pembayaran',
+            'menunggu_verifikasi_pembayaran',
+            'ditolak_pembayaran',
+            'disetujui_operasional',
+            'sedang_berlangsung',
+            'menunggu_verifikasi_pengembalian',
+            'selesai',
+            'dibatalkan'
+        ])->default('menunggu_pembayaran');
+
+        $table->timestamps();
+    });
+}
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        Schema::dropIfExists('sewas');
+    }
+};
+
+============================================================
+FILE: resources\js\Pages\Pelanggan\Katalog.jsx
+============================================================
+import { Head } from '@inertiajs/react';
+import { useMemo, useState } from 'react';
+
+export default function Katalog({ kendaraans = [] }) {
+    const [cari, setCari] = useState('');
+    const [kendaraanDipilih, setKendaraanDipilih] = useState(null);
+
+    const daftarKendaraan = Array.isArray(kendaraans)
+        ? kendaraans
+        : [];
+
+    const kendaraanDifilter = useMemo(() => {
+        const kataKunci = cari.trim().toLowerCase();
+
+        if (!kataKunci) {
+            return daftarKendaraan;
+        }
+
+        return daftarKendaraan.filter((kendaraan) => {
+            const nama =
+                kendaraan.nama_kendaraan?.toLowerCase() ?? '';
+
+            const merek =
+                kendaraan.merek?.toLowerCase() ?? '';
+
+            const transmisi =
+                kendaraan.transmisi?.toLowerCase() ?? '';
+
+            return (
+                nama.includes(kataKunci) ||
+                merek.includes(kataKunci) ||
+                transmisi.includes(kataKunci)
+            );
+        });
+    }, [cari, daftarKendaraan]);
+
+    const formatHarga = (harga) => {
+        return Number(harga ?? 0).toLocaleString('id-ID');
+    };
+
+    const alamatFoto = (kendaraan) => {
+        if (!kendaraan.foto_kendaraan) {
+            return null;
+        }
+
+        return `/storage/${kendaraan.foto_kendaraan}`;
+    };
+
+    return (
+        <>
+            <Head title="Katalog Kendaraan" />
+
+            <main className="mx-auto max-w-7xl px-5 py-10 sm:px-6 lg:px-8">
+                {/* JUDUL HALAMAN */}
+                <section className="rounded-3xl border border-slate-800 bg-[#10192B] px-6 py-10 text-center shadow-2xl sm:px-10">
+                    <p className="text-xs font-bold uppercase tracking-[0.25em] text-[#06B6D4]">
+                        Katalog Pelanggan
+                    </p>
+
+                    <h1 className="mt-4 text-3xl font-extrabold sm:text-4xl">
+                        Pilih Kendaraan Perjalanan Anda
+                    </h1>
+
+                    <p className="mx-auto mt-4 max-w-2xl text-sm leading-7 text-[#94A3B8]">
+                        Temukan kendaraan berdasarkan nama, merek, atau jenis
+                        transmisinya. Informasi stok tetap dikelola secara
+                        internal oleh admin RentDrive.
+                    </p>
+
+                    <div className="relative mx-auto mt-8 max-w-xl">
+                        <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4">
+                            <svg
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                className="h-5 w-5 text-slate-500"
+                            >
+                                <circle cx="11" cy="11" r="8" />
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    d="m21 21-4.3-4.3"
+                                />
+                            </svg>
+                        </div>
+
+                        <input
+                            type="text"
+                            value={cari}
+                            onChange={(event) =>
+                                setCari(event.target.value)
+                            }
+                            placeholder="Cari nama, merek, atau transmisi"
+                            className="w-full rounded-xl border border-slate-700 bg-[#1E293B] py-3.5 pl-12 pr-5 text-sm text-[#F8FAFC] shadow-xl outline-none transition placeholder:text-slate-500 focus:border-[#06B6D4] focus:ring-1 focus:ring-[#06B6D4]"
+                        />
+                    </div>
+                </section>
+
+                {/* JUMLAH HASIL */}
+                <section className="mt-10">
+                    <div className="mb-7 flex flex-col gap-3 border-b border-slate-800 pb-5 sm:flex-row sm:items-end sm:justify-between">
+                        <div>
+                            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#06B6D4]">
+                                Armada RentDrive
+                            </p>
+
+                            <h2 className="mt-2 text-2xl font-extrabold">
+                                Daftar Kendaraan
+                            </h2>
+                        </div>
+
+                        <p className="text-sm text-[#94A3B8]">
+                            Menampilkan {kendaraanDifilter.length} kendaraan
+                        </p>
+                    </div>
+
+                    {kendaraanDifilter.length > 0 ? (
+                        <div className="grid grid-cols-1 gap-7 md:grid-cols-2 lg:grid-cols-3">
+                            {kendaraanDifilter.map((kendaraan) => {
+                                const foto = alamatFoto(kendaraan);
+
+                                return (
+                                    <article
+                                        key={kendaraan.id}
+                                        className="group overflow-hidden rounded-2xl border border-slate-800 bg-[#1E293B] shadow-xl transition duration-300 hover:-translate-y-1 hover:border-[#06B6D4]/50"
+                                    >
+                                        <div className="relative m-5 mb-0 flex h-48 items-center justify-center overflow-hidden rounded-xl border border-slate-700 bg-[#0B1120]">
+                                            {foto ? (
+                                                <img
+                                                    src={foto}
+                                                    alt={
+                                                        kendaraan.nama_kendaraan ??
+                                                        'Kendaraan RentDrive'
+                                                    }
+                                                    className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                                                />
+                                            ) : (
+                                                <div className="text-center">
+                                                    <svg
+                                                        viewBox="0 0 24 24"
+                                                        fill="none"
+                                                        stroke="currentColor"
+                                                        strokeWidth="1.5"
+                                                        className="mx-auto h-16 w-16 text-[#06B6D4]"
+                                                    >
+                                                        <path
+                                                            strokeLinecap="round"
+                                                            strokeLinejoin="round"
+                                                            d="M3 13.5 5.5 8h13l2.5 5.5M5 13.5h14M6.5 17.5h.01M17.5 17.5h.01M5 13.5v5h2M19 13.5v5h-2"
+                                                        />
+                                                    </svg>
+
+                                                    <p className="mt-3 text-xs text-[#94A3B8]">
+                                                        Armada RentDrive
+                                                    </p>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div className="p-5">
+                                            <span className="text-xs font-bold uppercase tracking-wider text-[#06B6D4]">
+                                                {kendaraan.merek ??
+                                                    'RentDrive'}
+                                            </span>
+
+                                            <h3 className="mt-1 truncate text-lg font-bold">
+                                                {kendaraan.nama_kendaraan ??
+                                                    'Nama kendaraan'}
+                                            </h3>
+
+                                            <div className="mt-4 flex flex-wrap gap-2">
+                                                {kendaraan.transmisi && (
+                                                    <span className="rounded-lg bg-[#0B1120] px-3 py-1.5 text-xs text-[#94A3B8]">
+                                                        {kendaraan.transmisi}
+                                                    </span>
+                                                )}
+
+                                                {kendaraan.tahun_pembuatan && (
+                                                    <span className="rounded-lg bg-[#0B1120] px-3 py-1.5 text-xs text-[#94A3B8]">
+                                                        Tahun{' '}
+                                                        {
+                                                            kendaraan.tahun_pembuatan
+                                                        }
+                                                    </span>
+                                                )}
+
+                                                {kendaraan.kapasitas_penumpang && (
+                                                    <span className="rounded-lg bg-[#0B1120] px-3 py-1.5 text-xs text-[#94A3B8]">
+                                                        {
+                                                            kendaraan.kapasitas_penumpang
+                                                        }{' '}
+                                                        penumpang
+                                                    </span>
+                                                )}
+                                            </div>
+
+                                            <div className="my-5 h-px bg-slate-800" />
+
+                                            <div className="flex items-end justify-between gap-4">
+                                                <div>
+                                                    <p className="text-xs text-[#94A3B8]">
+                                                        Tarif Sewa
+                                                    </p>
+
+                                                    <p className="mt-1 text-lg font-extrabold">
+                                                        Rp{' '}
+                                                        {formatHarga(
+                                                            kendaraan.harga_per_hari
+                                                        )}
+                                                        <span className="ml-1 text-xs font-normal text-[#94A3B8]">
+                                                            /hari
+                                                        </span>
+                                                    </p>
+                                                </div>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        setKendaraanDipilih(
+                                                            kendaraan
+                                                        )
+                                                    }
+                                                    className="shrink-0 rounded-xl bg-[#06B6D4] px-5 py-2.5 text-xs font-bold text-[#0B1120] transition hover:bg-[#0891B2]"
+                                                >
+                                                    Pesan Sekarang
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </article>
+                                );
+                            })}
+                        </div>
+                    ) : (
+                        <div className="rounded-2xl border border-slate-800 bg-[#1E293B] px-6 py-16 text-center">
+                            <h3 className="text-lg font-bold">
+                                Kendaraan tidak ditemukan
+                            </h3>
+
+                            <p className="mt-2 text-sm text-[#94A3B8]">
+                                Gunakan kata kunci pencarian yang berbeda.
+                            </p>
+
+                            <button
+                                type="button"
+                                onClick={() => setCari('')}
+                                className="mt-5 rounded-xl border border-[#06B6D4] px-5 py-2.5 text-sm font-bold text-[#06B6D4] hover:bg-[#06B6D4]/10"
+                            >
+                                Tampilkan Semua
+                            </button>
+                        </div>
+                    )}
+                </section>
+            </main>
+
+            {/* DIALOG PEMILIHAN */}
+            {kendaraanDipilih && (
+                <div
+                    className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 px-5 backdrop-blur-sm"
+                    onClick={() => setKendaraanDipilih(null)}
+                >
+                    <div
+                        role="dialog"
+                        aria-modal="true"
+                        className="w-full max-w-lg rounded-3xl border border-slate-700 bg-[#1E293B] p-7 shadow-2xl"
+                        onClick={(event) => event.stopPropagation()}
+                    >
+                        <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#06B6D4]">
+                            Kendaraan Dipilih
+                        </p>
+
+                        <h2 className="mt-3 text-2xl font-extrabold">
+                            {kendaraanDipilih.nama_kendaraan}
+                        </h2>
+
+                        <p className="mt-2 text-sm text-[#94A3B8]">
+                            {kendaraanDipilih.merek} Â· Rp{' '}
+                            {formatHarga(
+                                kendaraanDipilih.harga_per_hari
+                            )}
+                            /hari
+                        </p>
+
+                        <p className="mt-5 text-sm leading-7 text-[#94A3B8]">
+                            Kendaraan sudah dipilih. Form pemesanan akan
+                            disambungkan dengan metode
+                            simpanBookingOnline setelah susunan field pada
+                            SewaController diperiksa.
+                        </p>
+
+                        <button
+                            type="button"
+                            onClick={() => setKendaraanDipilih(null)}
+                            className="mt-7 w-full rounded-xl bg-[#06B6D4] px-5 py-3 font-bold text-[#0B1120] hover:bg-[#0891B2]"
+                        >
+                            Tutup
+                        </button>
+                    </div>
+                </div>
+            )}
+        </>
+    );
+}
+
+============================================================
+FILE: resources\js\Pages\Pelanggan\RiwayatSewa.jsx
+============================================================
+import { Head, Link } from '@inertiajs/react';
+
+export default function RiwayatSewa({ riwayatSewa = [] }) {
+    const daftarRiwayat = Array.isArray(riwayatSewa)
+        ? riwayatSewa
+        : [];
+
+    const formatTanggal = (tanggal) => {
+        if (!tanggal) {
+            return '-';
+        }
+
+        return new Intl.DateTimeFormat('id-ID', {
+            day: '2-digit',
+            month: 'long',
+            year: 'numeric',
+        }).format(new Date(tanggal));
+    };
+
+    const kelasStatus = (status) => {
+        const nilai = status?.toLowerCase();
+
+        if (
+            nilai === 'diterima' ||
+            nilai === 'disetujui' ||
+            nilai === 'selesai'
+        ) {
+            return 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300';
+        }
+
+        if (nilai === 'ditolak' || nilai === 'dibatalkan') {
+            return 'border-rose-500/30 bg-rose-500/10 text-rose-300';
+        }
+
+        return 'border-amber-500/30 bg-amber-500/10 text-amber-300';
+    };
+
+    return (
+        <>
+            <Head title="Riwayat Sewa" />
+
+            <main className="mx-auto max-w-7xl px-5 py-10 sm:px-6 lg:px-8">
+                <section className="rounded-3xl border border-slate-800 bg-[#10192B] px-6 py-10 text-center shadow-2xl">
+                    <p className="text-xs font-bold uppercase tracking-[0.25em] text-[#06B6D4]">
+                        Transaksi Pelanggan
+                    </p>
+
+                    <h1 className="mt-4 text-3xl font-extrabold sm:text-4xl">
+                        Riwayat Penyewaan
+                    </h1>
+
+                    <p className="mx-auto mt-4 max-w-2xl text-sm leading-7 text-[#94A3B8]">
+                        Pantau permintaan pemesanan, proses konfirmasi,
+                        pembayaran, dan penyelesaian penyewaan kendaraan Anda.
+                    </p>
+                </section>
+
+                <section className="mt-10">
+                    {daftarRiwayat.length === 0 ? (
+                        <div className="rounded-2xl border border-slate-800 bg-[#1E293B] px-6 py-16 text-center shadow-xl">
+                            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-xl bg-[#06B6D4]/10">
+                                <svg
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="1.7"
+                                    className="h-7 w-7 text-[#06B6D4]"
+                                >
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        d="M6 3h12v18H6zM9 8h6M9 12h6M9 16h4"
+                                    />
+                                </svg>
+                            </div>
+
+                            <h2 className="mt-5 text-xl font-bold">
+                                Belum ada riwayat penyewaan
+                            </h2>
+
+                            <p className="mx-auto mt-3 max-w-md text-sm leading-7 text-[#94A3B8]">
+                                Riwayat transaksi akan muncul setelah Anda
+                                mengajukan pemesanan melalui halaman katalog.
+                            </p>
+
+                            <Link
+                                href={route('pelanggan.katalog')}
+                                viewTransition
+                                className="mt-6 inline-flex rounded-xl bg-[#06B6D4] px-6 py-3 text-sm font-bold text-[#0B1120] hover:bg-[#0891B2]"
+                            >
+                                Buka Katalog
+                            </Link>
+                        </div>
+                    ) : (
+                        <div className="space-y-5">
+                            {daftarRiwayat.map((sewa) => (
+                                <article
+                                    key={sewa.id}
+                                    className="rounded-2xl border border-slate-800 bg-[#1E293B] p-6 shadow-xl"
+                                >
+                                    <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+                                        <div>
+                                            <p className="text-xs font-bold uppercase tracking-wider text-[#06B6D4]">
+                                                Transaksi #{sewa.id}
+                                            </p>
+
+                                            <h2 className="mt-2 text-xl font-bold">
+                                                {sewa.kendaraan
+                                                    ?.nama_kendaraan ??
+                                                    sewa.nama_kendaraan ??
+                                                    'Penyewaan kendaraan'}
+                                            </h2>
+
+                                            <p className="mt-3 text-sm text-[#94A3B8]">
+                                                {formatTanggal(
+                                                    sewa.tanggal_mulai
+                                                )}{' '}
+                                                sampai{' '}
+                                                {formatTanggal(
+                                                    sewa.tanggal_selesai
+                                                )}
+                                            </p>
+                                        </div>
+
+                                        <span
+                                            className={`w-fit rounded-full border px-4 py-2 text-xs font-bold uppercase tracking-wider ${kelasStatus(
+                                                sewa.status
+                                            )}`}
+                                        >
+                                            {sewa.status ?? 'Menunggu'}
+                                        </span>
+                                    </div>
+                                </article>
+                            ))}
+                        </div>
+                    )}
+                </section>
+            </main>
+        </>
+    );
+}
+
+============================================================
+FILE: routes\web.php
+============================================================
+<?php
+
+use App\Http\Controllers\OwnerController;
+use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\SewaController;
+use App\Models\Kendaraan;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
+use Inertia\Inertia;
+
+/*
+|--------------------------------------------------------------------------
+| LANDING PAGE
+|--------------------------------------------------------------------------
+*/
+
+Route::get('/', function () {
+    return Inertia::render('HalamanUtama', [
+        'canLogin' => Route::has('login'),
+        'canRegister' => Route::has('register'),
+
+        /*
+         * Hanya mengirim data kendaraan yang boleh dilihat pengunjung.
+         * Jumlah unit, plat nomor, dan status operasional tidak dikirim.
+         */
+        'kendaraans' => Kendaraan::query()
+            ->select([
+                'id',
+                'nama_kendaraan',
+                'merek',
+                'warna',
+                'tahun_pembuatan',
+                'transmisi',
+                'kapasitas_penumpang',
+                'harga_per_hari',
+                'foto_kendaraan',
+                'fasilitas',
+                'deskripsi_kendaraan',
+            ])
+            ->latest()
+            ->get(),
+    ]);
+})->name('landing_page');
+
+/*
+|--------------------------------------------------------------------------
+| ROUTE YANG WAJIB LOGIN
+|--------------------------------------------------------------------------
+*/
+
+Route::middleware('auth')->group(function () {
+    /*
+    |--------------------------------------------------------------------------
+    | PENGARAH DASHBOARD BERDASARKAN ROLE
+    |--------------------------------------------------------------------------
+    */
+
+    Route::get('/dashboard', function (Request $request) {
+        return match ($request->user()->role) {
+            'pelanggan' => redirect()->route('pelanggan.dashboard'),
+            'admin' => redirect()->route('admin.dashboard'),
+            'owner' => redirect()->route('owner.dashboard'),
+
+            default => abort(
+                403,
+                'Role akun tidak dikenali oleh sistem.'
+            ),
+        };
+    })->name('dashboard');
+
+    /*
+    |--------------------------------------------------------------------------
+    | ROUTE PELANGGAN
+    |--------------------------------------------------------------------------
+    */
+
+    Route::middleware('role:pelanggan')
+        ->prefix('pelanggan')
+        ->name('pelanggan.')
+        ->group(function () {
+            /*
+             * Dashboard tidak lagi memuat daftar kendaraan.
+             */
+            Route::get('/dashboard', function () {
+                return Inertia::render('Dashboard');
+            })->name('dashboard');
+
+            /*
+             * Halaman khusus katalog pelanggan.
+             */
+            Route::get('/katalog', function () {
+                return Inertia::render('Pelanggan/Katalog', [
+                    'kendaraans' => Kendaraan::query()
+                        ->select([
+                            'id',
+                            'nama_kendaraan',
+                            'merek',
+                            'warna',
+                            'tahun_pembuatan',
+                            'transmisi',
+                            'kapasitas_penumpang',
+                            'harga_per_hari',
+                            'foto_kendaraan',
+                            'fasilitas',
+                            'deskripsi_kendaraan',
+                        ])
+                        ->latest()
+                        ->get(),
+                ]);
+            })->name('katalog');
+
+            /*
+             * Halaman riwayat pelanggan.
+             * Data transaksi dapat disambungkan setelah struktur tabel
+             * dan relasi Sewa diperiksa.
+             */
+            Route::get('/riwayat', function () {
+                return Inertia::render('Pelanggan/RiwayatSewa', [
+                    'riwayatSewa' => [],
+                ]);
+            })->name('riwayat');
+
+            /*
+             * Halaman profil khusus pelanggan.
+             */
+            Route::get('/profil', [
+                ProfileController::class,
+                'edit',
+            ])->name('profile.edit');
+
+            Route::patch('/profil', [
+                ProfileController::class,
+                'update',
+            ])->name('profile.update');
+
+            Route::delete('/profil', [
+                ProfileController::class,
+                'destroy',
+            ])->name('profile.destroy');
+
+            /*
+             * Proses penyewaan.
+             */
+            Route::post('/sewa', [
+                SewaController::class,
+                'simpanBookingOnline',
+            ])->name('sewa.simpan');
+
+            Route::post('/sewa/pembayaran/{id}', [
+                SewaController::class,
+                'unggahBuktiPembayaran',
+            ])->name('sewa.pembayaran.unggah');
+        });
+
+    /*
+    |--------------------------------------------------------------------------
+    | ROUTE ADMIN
+    |--------------------------------------------------------------------------
+    */
+
+    Route::middleware('role:admin')
+        ->prefix('admin')
+        ->name('admin.')
+        ->group(function () {
+            Route::get('/dashboard', function () {
+                return Inertia::render('Admin/Dashboard');
+            })->name('dashboard');
+
+            Route::get('/kendaraan', function () {
+                return Inertia::render('Admin/KelolaKendaraan');
+            })->name('kendaraan.index');
+
+            Route::post('/kendaraan/simpan', function () {
+                return back()->with(
+                    'success',
+                    'Data kendaraan berhasil disimpan.'
+                );
+            })->name('kendaraan.simpan');
+
+            Route::patch('/kendaraan/update/{id}', function (int $id) {
+                return back()->with(
+                    'success',
+                    "Data kendaraan {$id} berhasil diperbarui."
+                );
+            })->name('kendaraan.update');
+
+            Route::delete('/kendaraan/hapus/{id}', function (int $id) {
+                return back()->with(
+                    'success',
+                    "Data kendaraan {$id} berhasil dihapus."
+                );
+            })->name('kendaraan.hapus');
+
+            Route::get('/booking', function () {
+                return Inertia::render('Admin/KelolaBooking');
+            })->name('booking.index');
+
+            Route::post('/booking/verifikasi/{id}', [
+                SewaController::class,
+                'verifikasiBookingAdmin',
+            ])->name('booking.verifikasi');
+
+            Route::post('/booking/walk-in', [
+                SewaController::class,
+                'simpanBookingWalkIn',
+            ])->name('booking.walkin');
+
+            Route::get('/pengembalian', function () {
+                return Inertia::render('Admin/KelolaPengembalian');
+            })->name('pengembalian.index');
+
+            Route::post('/pengembalian/proses/{id}', [
+                SewaController::class,
+                'selesaikanPengembalianAdmin',
+            ])->name('pengembalian.proses');
+
+            Route::get('/riwayat-transaksi', function () {
+                return Inertia::render('Admin/RiwayatTransaksi');
+            })->name('riwayat.index');
+
+            Route::get('/laporan', function () {
+                return Inertia::render('Admin/LaporanOperasional');
+            })->name('laporan');
+        });
+
+    /*
+    |--------------------------------------------------------------------------
+    | ROUTE OWNER
+    |--------------------------------------------------------------------------
+    */
+
+    Route::middleware('role:owner')
+        ->prefix('owner')
+        ->name('owner.')
+        ->group(function () {
+            Route::get('/dashboard', [
+                OwnerController::class,
+                'ambilDataDashboard',
+            ])->name('dashboard');
+
+            Route::get('/laporan-bisnis', [
+                OwnerController::class,
+                'ambilLaporanBisnis',
+            ])->name('laporan_bisnis');
+
+            Route::get('/monitoring-admin', [
+                OwnerController::class,
+                'monitoringAktivitasAdmin',
+            ])->name('monitoring_admin');
+        });
+});
+
+require __DIR__.'/auth.php';
+
+============================================================
+FILE: resources\js\app.jsx
+============================================================
+import './bootstrap';
+import '../css/app.css';
+
+import PelangganLayout from '@/Layouts/PelangganLayout';
+import { createInertiaApp } from '@inertiajs/react';
+import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
+import { createRoot } from 'react-dom/client';
+
+const appName = import.meta.env.VITE_APP_NAME || 'RentDrive';
+
+createInertiaApp({
+    title: (title) => `${title} - ${appName}`,
+
+    resolve: async (name) => {
+        const page = await resolvePageComponent(
+            `./Pages/${name}.jsx`,
+            import.meta.glob('./Pages/**/*.jsx'),
+        );
+
+        /*
+         * Semua halaman pelanggan memakai persistent layout yang sama.
+         * Header dan footer tidak dimuat ulang ketika navigasi.
+         */
+        if (
+            name === 'Dashboard' ||
+            name.startsWith('Pelanggan/')
+        ) {
+            page.default.layout =
+                page.default.layout ||
+                ((pageContent) => (
+                    <PelangganLayout>
+                        {pageContent}
+                    </PelangganLayout>
+                ));
+        }
+
+        return page;
+    },
+
+    setup({ el, App, props }) {
+        const root = createRoot(el);
+
+        root.render(<App {...props} />);
+    },
+
+    /*
+     * Progress baru muncul setelah 250 ms.
+     * Navigasi cepat hampir tidak memperlihatkan loading bar.
+     */
+    progress: {
+        delay: 250,
+        color: '#06B6D4',
+        includeCSS: true,
+        showSpinner: false,
+    },
+});
+

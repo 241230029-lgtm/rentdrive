@@ -1,0 +1,81 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Warna dasar aplikasi agar tidak muncul kilatan putih */
+html,
+body,
+#app {
+    min-height: 100%;
+    background-color: #0b1120;
+}
+
+/* Pergerakan scroll dibuat lebih halus */
+html {
+    scroll-behavior: smooth;
+}
+
+/* Animasi saat isi halaman Inertia berganti */
+.page-transition {
+    animation: rentdrive-page-enter 180ms ease-out;
+}
+
+@keyframes rentdrive-page-enter {
+    from {
+        opacity: 0.82;
+        transform: translateY(3px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Transisi perpindahan halaman */
+::view-transition-old(root),
+::view-transition-new(root) {
+    animation-duration: 180ms;
+    animation-timing-function: ease-out;
+}
+
+::view-transition-old(root) {
+    animation-name: rentdrive-fade-out;
+}
+
+::view-transition-new(root) {
+    animation-name: rentdrive-fade-in;
+}
+
+@keyframes rentdrive-fade-out {
+    from {
+        opacity: 1;
+    }
+
+    to {
+        opacity: 0.96;
+    }
+}
+
+@keyframes rentdrive-fade-in {
+    from {
+        opacity: 0.96;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+/* Menghilangkan animasi bagi pengguna yang menonaktifkan motion */
+@media (prefers-reduced-motion: reduce) {
+    .page-transition,
+    ::view-transition-old(root),
+    ::view-transition-new(root) {
+        animation: none;
+    }
+
+    html {
+        scroll-behavior: auto;
+    }
+}
