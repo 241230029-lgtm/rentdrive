@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\RoleRedirectController;
 use Illuminate\Support\Facades\Route;
 
@@ -8,13 +9,14 @@ use Illuminate\Support\Facades\Route;
 | ROUTE UTAMA
 |--------------------------------------------------------------------------
 |
-| File ini berfungsi sebagai pusat pemanggilan seluruh kelompok route:
+| File ini menjadi pusat pemanggilan seluruh kelompok route:
 |
 | - Route publik
 | - Route pelanggan
 | - Route admin
 | - Route owner
 | - Route autentikasi
+| - Route notifikasi
 |
 */
 
@@ -24,10 +26,7 @@ use Illuminate\Support\Facades\Route;
 |--------------------------------------------------------------------------
 |
 | Pengguna yang membuka /dashboard akan diarahkan ke dashboard
-| sesuai role akun yang sedang login.
-|
-| Controller:
-| app/Http/Controllers/RoleRedirectController.php
+| berdasarkan role akun yang sedang login.
 |
 */
 
@@ -37,6 +36,56 @@ Route::middleware('auth')
         RoleRedirectController::class
     )
     ->name('dashboard');
+
+/*
+|--------------------------------------------------------------------------
+| NOTIFIKASI PENGGUNA
+|--------------------------------------------------------------------------
+|
+| Route ini dapat digunakan oleh pelanggan, admin, dan owner.
+| Setiap pengguna hanya dapat mengakses notifikasinya sendiri.
+|
+| URL:
+| /notifikasi
+|
+| Nama route:
+| notifikasi.*
+|
+*/
+
+Route::middleware('auth')
+    ->prefix('notifikasi')
+    ->name('notifikasi.')
+    ->group(function () {
+        /*
+         * Mengambil daftar notifikasi pengguna.
+         */
+        Route::get('/', [
+            NotificationController::class,
+            'index',
+        ])->name('index');
+
+        /*
+         * Menandai semua notifikasi sebagai dibaca.
+         *
+         * Route ini ditempatkan sebelum route dengan parameter ID.
+         */
+        Route::post('/baca-semua', [
+            NotificationController::class,
+            'bacaSemua',
+        ])->name('baca-semua');
+
+        /*
+         * Menandai satu notifikasi sebagai dibaca,
+         * lalu membuka halaman tujuan notifikasi.
+         */
+        Route::post('/{id}/baca', [
+            NotificationController::class,
+            'baca',
+        ])
+            ->whereUuid('id')
+            ->name('baca');
+    });
 
 /*
 |--------------------------------------------------------------------------

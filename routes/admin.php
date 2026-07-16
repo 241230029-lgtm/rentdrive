@@ -2,28 +2,15 @@
 
 use App\Http\Controllers\Admin\BookingController;
 use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\IdentitasController;
 use App\Http\Controllers\Admin\KendaraanController;
+use App\Http\Controllers\Admin\KetersediaanController;
 use App\Http\Controllers\Admin\LaporanOperasionalController;
 use App\Http\Controllers\Admin\PembayaranController;
+use App\Http\Controllers\Admin\PembayaranDendaController;
 use App\Http\Controllers\Admin\PengembalianController;
 use App\Http\Controllers\Admin\RiwayatTransaksiController;
 use Illuminate\Support\Facades\Route;
-
-/*
-|--------------------------------------------------------------------------
-| ROUTE ADMIN
-|--------------------------------------------------------------------------
-|
-| Seluruh route pada file ini hanya dapat diakses oleh pengguna
-| yang sudah login dan memiliki role admin.
-|
-| Prefix URL:
-| /admin
-|
-| Prefix nama route:
-| admin.
-|
-*/
 
 Route::middleware([
     'auth',
@@ -31,7 +18,7 @@ Route::middleware([
 ])
     ->prefix('admin')
     ->name('admin.')
-    ->group(function () {
+    ->group(function (): void {
         /*
         |--------------------------------------------------------------------------
         | DASHBOARD ADMIN
@@ -54,55 +41,103 @@ Route::middleware([
             'index',
         ])->name('booking.index');
 
-        /*
-        |--------------------------------------------------------------------------
-        | KONFIRMASI BOOKING ONLINE
-        |--------------------------------------------------------------------------
-        |
-        | Admin dapat menyetujui atau menolak booking pelanggan.
-        |
-        */
-
         Route::post('/booking/konfirmasi/{id}', [
             BookingController::class,
             'konfirmasi',
-        ])->name('booking.konfirmasi');
-
-        /*
-        |--------------------------------------------------------------------------
-        | VERIFIKASI PEMBAYARAN
-        |--------------------------------------------------------------------------
-        |
-        | Admin dapat menyetujui atau menolak bukti pembayaran.
-        |
-        */
+        ])
+            ->whereNumber('id')
+            ->name('booking.konfirmasi');
 
         Route::post('/booking/verifikasi/{id}', [
             PembayaranController::class,
             'verifikasi',
-        ])->name('booking.verifikasi');
-
-        /*
-        |--------------------------------------------------------------------------
-        | CEK KETERSEDIAAN KENDARAAN
-        |--------------------------------------------------------------------------
-        */
-
-        Route::get('/booking/cek-ketersediaan', [
-            BookingController::class,
-            'cekKetersediaan',
-        ])->name('booking.cek-ketersediaan');
-
-        /*
-        |--------------------------------------------------------------------------
-        | BOOKING WALK-IN
-        |--------------------------------------------------------------------------
-        */
+        ])
+            ->whereNumber('id')
+            ->name('booking.verifikasi');
 
         Route::post('/booking/walk-in', [
             BookingController::class,
             'storeWalkIn',
         ])->name('booking.walkin');
+
+        /*
+        |--------------------------------------------------------------------------
+        | CEK KETERSEDIAAN STOK
+        |--------------------------------------------------------------------------
+        */
+
+        Route::get('/ketersediaan', [
+            KetersediaanController::class,
+            'index',
+        ])->name('ketersediaan.index');
+
+        Route::get('/ketersediaan/periksa', [
+            KetersediaanController::class,
+            'periksa',
+        ])->name('ketersediaan.periksa');
+
+        /*
+        |--------------------------------------------------------------------------
+        | VERIFIKASI IDENTITAS
+        |--------------------------------------------------------------------------
+        */
+
+        Route::get('/identitas', [
+            IdentitasController::class,
+            'index',
+        ])->name('identitas.index');
+
+        Route::get(
+            '/identitas/{sewaId}/dokumen/{jenis}',
+            [
+                IdentitasController::class,
+                'dokumen',
+            ]
+        )
+            ->whereNumber('sewaId')
+            ->whereIn(
+                'jenis',
+                [
+                    'ktp',
+                    'sim',
+                ]
+            )
+            ->name('identitas.dokumen');
+
+        Route::post(
+            '/identitas/{sewaId}/verifikasi',
+            [
+                IdentitasController::class,
+                'verifikasi',
+            ]
+        )
+            ->whereNumber('sewaId')
+            ->name('identitas.verifikasi');
+
+        /*
+        |--------------------------------------------------------------------------
+        | VERIFIKASI PEMBAYARAN DENDA
+        |--------------------------------------------------------------------------
+        */
+
+        Route::get('/denda', [
+            PembayaranDendaController::class,
+            'index',
+        ])->name('denda.index');
+
+        Route::get('/denda/{sewaId}/bukti', [
+            PembayaranDendaController::class,
+            'bukti',
+        ])
+            ->whereNumber('sewaId')
+            ->name('denda.bukti');
+
+        Route::post('/denda/{sewaId}/verifikasi', [
+            PembayaranDendaController::class,
+            'verifikasi',
+        ])
+            ->whereNumber('sewaId')
+            ->name('denda.verifikasi');
 
         /*
         |--------------------------------------------------------------------------
@@ -123,16 +158,20 @@ Route::middleware([
         Route::patch('/kendaraan/update/{id}', [
             KendaraanController::class,
             'update',
-        ])->name('kendaraan.update');
+        ])
+            ->whereNumber('id')
+            ->name('kendaraan.update');
 
         Route::delete('/kendaraan/hapus/{id}', [
             KendaraanController::class,
             'destroy',
-        ])->name('kendaraan.hapus');
+        ])
+            ->whereNumber('id')
+            ->name('kendaraan.hapus');
 
         /*
         |--------------------------------------------------------------------------
-        | PENGEMBALIAN KENDARAAN
+        | PENGEMBALIAN
         |--------------------------------------------------------------------------
         */
 
@@ -144,7 +183,9 @@ Route::middleware([
         Route::post('/pengembalian/proses/{id}', [
             PengembalianController::class,
             'proses',
-        ])->name('pengembalian.proses');
+        ])
+            ->whereNumber('id')
+            ->name('pengembalian.proses');
 
         /*
         |--------------------------------------------------------------------------

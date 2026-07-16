@@ -1,248 +1,180 @@
+import NotificationMenu from '@/Components/NotificationMenu';
 import { Link, usePage } from '@inertiajs/react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
-function IkonDashboard() {
+const menuOwner = [
+    {
+        label: 'Dashboard',
+        href: '/owner/dashboard',
+        activePattern: 'owner.dashboard',
+        icon: '▦',
+    },
+    {
+        label: 'Laporan Bisnis',
+        href: '/owner/laporan-bisnis',
+        activePattern: 'owner.laporan_bisnis',
+        icon: '▥',
+    },
+];
+
+function MenuItem({
+    item,
+    onClick,
+}) {
+    const aktif = route().current(
+        item.activePattern,
+    );
+
     return (
-        <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            className="h-5 w-5"
+        <a
+            href={item.href}
+            onClick={onClick}
+            className={`flex h-10 items-center gap-3 rounded-lg px-3 text-xs font-bold transition ${
+                aktif
+                    ? 'bg-[#06B6D4] text-[#0B1120]'
+                    : 'text-slate-400 hover:bg-[#1E293B] hover:text-white'
+            }`}
         >
-            <rect x="3" y="3" width="7" height="7" rx="1" />
-            <rect x="14" y="3" width="7" height="7" rx="1" />
-            <rect x="3" y="14" width="7" height="7" rx="1" />
-            <rect x="14" y="14" width="7" height="7" rx="1" />
-        </svg>
+            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-black/10 text-sm">
+                {item.icon}
+            </span>
+
+            <span className="truncate">
+                {item.label}
+            </span>
+        </a>
     );
 }
 
-function IkonLaporan() {
-    return (
-        <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            className="h-5 w-5"
-        >
-            <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M5 20V10M12 20V4M19 20v-7"
-            />
+export default function OwnerLayout({
+    children,
+}) {
+    const {
+        auth,
+        notifikasi,
+    } = usePage().props;
 
-            <path
-                strokeLinecap="round"
-                d="M3 20h18"
-            />
-        </svg>
+    const [
+        sidebarTerbuka,
+        setSidebarTerbuka,
+    ] = useState(false);
+
+    const user = auth?.user ?? null;
+
+    const daftarNotifikasi = Array.isArray(
+        notifikasi?.terbaru,
+    )
+        ? notifikasi.terbaru
+        : [];
+
+    const jumlahBelumDibaca = Number(
+        notifikasi?.jumlah_belum_dibaca ?? 0,
     );
-}
 
-function IkonMonitoring() {
-    return (
-        <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            className="h-5 w-5"
-        >
-            <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M12 3a9 9 0 1 0 9 9"
-            />
+    useEffect(() => {
+        document.body.style.overflow =
+            sidebarTerbuka ? 'hidden' : '';
 
-            <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M12 7v5l3 2M16 3h5v5"
-            />
-        </svg>
-    );
-}
-
-function IkonKeluar() {
-    return (
-        <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            className="h-5 w-5"
-        >
-            <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M14 8l4 4-4 4M18 12H8M10 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h5"
-            />
-        </svg>
-    );
-}
-
-function IkonMenu() {
-    return (
-        <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            className="h-5 w-5"
-        >
-            <path
-                strokeLinecap="round"
-                d="M4 6h16M4 12h16M4 18h16"
-            />
-        </svg>
-    );
-}
-
-function IkonTutup() {
-    return (
-        <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            className="h-5 w-5"
-        >
-            <path
-                strokeLinecap="round"
-                d="M6 6l12 12M18 6 6 18"
-            />
-        </svg>
-    );
-}
-
-export default function OwnerLayout({ children }) {
-    const { auth } = usePage().props;
-
-    const [sidebarTerbuka, setSidebarTerbuka] =
-        useState(false);
-
-    const user = auth?.user;
-
-    const kelasMenu = (aktif) => {
-        return aktif
-            ? 'flex items-center gap-3 rounded-xl bg-[#06B6D4] px-4 py-3 text-sm font-bold text-[#0B1120] shadow-lg shadow-cyan-950/30'
-            : 'flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-[#94A3B8] transition hover:bg-[#1E293B] hover:text-[#F8FAFC]';
-    };
+        return () => {
+            document.body.style.overflow =
+                '';
+        };
+    }, [sidebarTerbuka]);
 
     const tutupSidebar = () => {
         setSidebarTerbuka(false);
     };
 
     return (
-        <div className="min-h-screen bg-[#0B1120] text-[#F8FAFC]">
+        <div className="min-h-screen bg-[#0B1120] text-white">
             <div className="flex min-h-screen">
                 <aside
-                    className={`fixed inset-y-0 left-0 z-50 w-72 border-r border-slate-800 bg-[#10192B] transition-transform duration-300 md:sticky md:top-0 md:h-screen md:translate-x-0 ${
+                    className={`fixed inset-y-0 left-0 z-50 w-60 border-r border-slate-800 bg-[#10192B] transition-transform duration-200 lg:sticky lg:top-0 lg:h-screen lg:translate-x-0 ${
                         sidebarTerbuka
                             ? 'translate-x-0'
                             : '-translate-x-full'
                     }`}
                 >
-                    <div className="flex h-full flex-col p-5">
-                        <div className="flex items-center justify-between">
-                            <Link
-                                href={route('owner.dashboard')}
-                                viewTransition
-                                className="text-2xl font-black"
-                                onClick={tutupSidebar}
+                    <div className="flex h-full flex-col overflow-y-auto p-3">
+                        <div className="flex h-11 items-center justify-between px-2">
+                            <a
+                                href="/owner/dashboard"
+                                onClick={
+                                    tutupSidebar
+                                }
+                                className="text-xl font-black"
                             >
                                 Rent
                                 <span className="text-[#06B6D4]">
                                     Drive
                                 </span>
-                            </Link>
+                            </a>
 
                             <button
                                 type="button"
-                                onClick={tutupSidebar}
-                                className="rounded-lg p-2 text-[#94A3B8] transition hover:bg-[#1E293B] hover:text-white md:hidden"
-                                aria-label="Tutup menu owner"
+                                onClick={
+                                    tutupSidebar
+                                }
+                                className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-700 text-slate-400 lg:hidden"
+                                aria-label="Tutup menu"
                             >
-                                <IkonTutup />
+                                ×
                             </button>
                         </div>
 
-                        <div className="mt-8 rounded-2xl border border-slate-800 bg-[#1E293B] p-4">
-                            <div className="flex items-center gap-3">
-                                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#06B6D4]/10 font-extrabold text-[#06B6D4]">
+                        <div className="mt-3 rounded-xl border border-slate-800 bg-[#0B1120] p-3">
+                            <div className="flex items-center gap-2.5">
+                                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#06B6D4]/10 text-sm font-black text-[#06B6D4]">
                                     {user?.name
                                         ?.charAt(0)
-                                        ?.toUpperCase() ?? 'O'}
+                                        ?.toUpperCase() ??
+                                        'O'}
                                 </div>
 
                                 <div className="min-w-0">
-                                    <p className="truncate font-bold">
-                                        {user?.name ?? 'Owner'}
+                                    <p className="truncate text-xs font-black text-white">
+                                        {user?.name ??
+                                            'Pemilik Rental'}
                                     </p>
 
-                                    <p className="mt-1 truncate text-xs text-[#94A3B8]">
-                                        {user?.email ?? 'owner@rentdrive.com'}
+                                    <p className="mt-0.5 truncate text-[10px] text-slate-500">
+                                        {user?.email ??
+                                            'owner@rentdrive.com'}
                                     </p>
                                 </div>
                             </div>
 
-                            <p className="mt-4 text-[10px] font-bold uppercase tracking-[0.2em] text-[#06B6D4]">
-                                Pemilik Usaha
-                            </p>
+                            <div className="mt-2 border-t border-slate-800 pt-2">
+                                <span className="inline-flex rounded-full border border-[#06B6D4]/20 bg-[#06B6D4]/10 px-2 py-1 text-[8px] font-black uppercase tracking-wider text-[#06B6D4]">
+                                    Owner
+                                </span>
+                            </div>
                         </div>
 
-                        <nav className="mt-8 space-y-2">
-                            <Link
-                                href={route('owner.dashboard')}
-                                viewTransition
-                                onClick={tutupSidebar}
-                                className={kelasMenu(
-                                    route().current('owner.dashboard'),
-                                )}
-                            >
-                                <IkonDashboard />
-                                Dashboard
-                            </Link>
-
-                            <Link
-                                href={route('owner.laporan_bisnis', {
-                                    kategori_laporan: 'pendapatan',
-                                })}
-                                viewTransition
-                                onClick={tutupSidebar}
-                                className={kelasMenu(
-                                    route().current(
-                                        'owner.laporan_bisnis',
-                                    ),
-                                )}
-                            >
-                                <IkonLaporan />
-                                Laporan Bisnis
-                            </Link>
-
-                            <Link
-                                href={route(
-                                    'owner.monitoring_admin',
-                                )}
-                                viewTransition
-                                onClick={tutupSidebar}
-                                className={kelasMenu(
-                                    route().current(
-                                        'owner.monitoring_admin',
-                                    ),
-                                )}
-                            >
-                                <IkonMonitoring />
-                                Monitoring Admin
-                            </Link>
+                        <nav className="mt-3 space-y-1">
+                            {menuOwner.map(
+                                (item) => (
+                                    <MenuItem
+                                        key={
+                                            item.href
+                                        }
+                                        item={item}
+                                        onClick={
+                                            tutupSidebar
+                                        }
+                                    />
+                                ),
+                            )}
                         </nav>
 
-                        <div className="mt-auto border-t border-slate-800 pt-5">
-                            <p className="text-xs leading-5 text-[#64748B]">
-                                Ringkasan bisnis dan aktivitas
-                                operasional RentDrive.
+                        <div className="mt-auto rounded-lg border border-slate-800 bg-[#0B1120] p-3">
+                            <p className="text-[9px] font-black uppercase tracking-wider text-slate-600">
+                                Panel Owner
+                            </p>
+
+                            <p className="mt-1 text-[10px] leading-4 text-slate-500">
+                                Pantau ringkasan dan
+                                laporan bisnis RentDrive.
                             </p>
                         </div>
                     </div>
@@ -251,68 +183,75 @@ export default function OwnerLayout({ children }) {
                 {sidebarTerbuka && (
                     <button
                         type="button"
-                        onClick={tutupSidebar}
-                        aria-label="Tutup latar menu"
-                        className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm md:hidden"
+                        onClick={
+                            tutupSidebar
+                        }
+                        className="fixed inset-0 z-40 bg-black/70 lg:hidden"
+                        aria-label="Tutup sidebar"
                     />
                 )}
 
                 <div className="min-w-0 flex-1">
-                    <header className="sticky top-0 z-30 border-b border-slate-800 bg-[#0B1120]/95 backdrop-blur">
-                        <div className="flex h-16 items-center justify-between px-5 sm:px-8">
-                            <div className="flex min-w-0 items-center gap-3">
-                                <button
-                                    type="button"
-                                    onClick={() =>
-                                        setSidebarTerbuka(true)
-                                    }
-                                    className="rounded-xl border border-slate-700 bg-[#1E293B] p-2.5 text-[#94A3B8] transition hover:border-[#06B6D4]/50 hover:text-[#06B6D4] md:hidden"
-                                    aria-label="Buka menu owner"
-                                >
-                                    <IkonMenu />
-                                </button>
+                    <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-slate-800 bg-[#0B1120]/95 px-3 backdrop-blur sm:px-5">
+                        <div className="flex min-w-0 items-center gap-3">
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    setSidebarTerbuka(
+                                        true,
+                                    )
+                                }
+                                className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-700 bg-[#10192B] text-slate-300 lg:hidden"
+                                aria-label="Buka menu"
+                            >
+                                ☰
+                            </button>
 
-                                <div className="min-w-0">
-                                    <p className="text-sm font-bold">
-                                        Panel Owner
-                                    </p>
+                            <div>
+                                <p className="text-xs font-black text-white">
+                                    Panel Pemilik
+                                </p>
 
-                                    <p className="hidden text-xs text-[#64748B] sm:block">
-                                        Analisis dan Pengawasan RentDrive
-                                    </p>
-                                </div>
+                                <p className="hidden text-[10px] text-slate-600 sm:block">
+                                    Ringkasan dan laporan
+                                    bisnis
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                            <NotificationMenu
+                                daftar={
+                                    daftarNotifikasi
+                                }
+                                jumlahBelumDibaca={
+                                    jumlahBelumDibaca
+                                }
+                            />
+
+                            <div className="hidden text-right md:block">
+                                <p className="max-w-40 truncate text-xs font-bold text-white">
+                                    {user?.name ??
+                                        'Pemilik Rental'}
+                                </p>
+
+                                <p className="text-[9px] font-bold uppercase tracking-wider text-[#06B6D4]">
+                                    Owner
+                                </p>
                             </div>
 
-                            <div className="flex items-center gap-3">
-                                <div className="hidden text-right lg:block">
-                                    <p className="max-w-48 truncate text-sm font-bold">
-                                        {user?.name ?? 'Owner'}
-                                    </p>
-
-                                    <p className="max-w-48 truncate text-xs text-[#64748B]">
-                                        {user?.email ?? ''}
-                                    </p>
-                                </div>
-
-                                <div className="hidden h-8 w-px bg-slate-800 lg:block" />
-
-                                <Link
-                                    href={route('logout')}
-                                    method="post"
-                                    as="button"
-                                    className="flex items-center gap-2 rounded-xl border border-rose-500/40 bg-rose-500/10 px-4 py-2.5 text-sm font-bold text-rose-300 transition hover:border-rose-500/70 hover:bg-rose-500/20"
-                                >
-                                    <IkonKeluar />
-
-                                    <span className="hidden sm:inline">
-                                        Keluar
-                                    </span>
-                                </Link>
-                            </div>
+                            <Link
+                                href={route('logout')}
+                                method="post"
+                                as="button"
+                                className="flex h-9 items-center rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 text-[11px] font-black text-rose-300 transition hover:bg-rose-500/20"
+                            >
+                                Keluar
+                            </Link>
                         </div>
                     </header>
 
-                    <div className="page-transition">
+                    <div className="min-w-0">
                         {children}
                     </div>
                 </div>

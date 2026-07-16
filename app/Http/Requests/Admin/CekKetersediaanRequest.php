@@ -6,11 +6,18 @@ use Illuminate\Foundation\Http\FormRequest;
 
 class CekKetersediaanRequest extends FormRequest
 {
+    /**
+     * Hanya admin yang boleh melihat stok internal.
+     */
     public function authorize(): bool
     {
-        return $this->user()?->role === 'admin';
+        return $this->user()?->role ===
+            'admin';
     }
 
+    /**
+     * Validasi kendaraan dan rentang tanggal.
+     */
     public function rules(): array
     {
         return [
@@ -23,6 +30,7 @@ class CekKetersediaanRequest extends FormRequest
             'tanggal_mulai' => [
                 'required',
                 'date',
+                'after_or_equal:today',
             ],
 
             'tanggal_selesai' => [
@@ -33,6 +41,9 @@ class CekKetersediaanRequest extends FormRequest
         ];
     }
 
+    /**
+     * Pesan validasi Bahasa Indonesia.
+     */
     public function messages(): array
     {
         return [
@@ -43,13 +54,16 @@ class CekKetersediaanRequest extends FormRequest
                 'Data kendaraan tidak valid.',
 
             'kendaraan_id.exists' =>
-                'Data kendaraan tidak ditemukan.',
+                'Kendaraan tidak ditemukan.',
 
             'tanggal_mulai.required' =>
                 'Tanggal mulai wajib diisi.',
 
             'tanggal_mulai.date' =>
                 'Tanggal mulai tidak valid.',
+
+            'tanggal_mulai.after_or_equal' =>
+                'Tanggal mulai tidak boleh sebelum hari ini.',
 
             'tanggal_selesai.required' =>
                 'Tanggal selesai wajib diisi.',
@@ -59,6 +73,23 @@ class CekKetersediaanRequest extends FormRequest
 
             'tanggal_selesai.after' =>
                 'Tanggal selesai harus setelah tanggal mulai.',
+        ];
+    }
+
+    /**
+     * Nama atribut untuk pesan validasi.
+     */
+    public function attributes(): array
+    {
+        return [
+            'kendaraan_id' =>
+                'kendaraan',
+
+            'tanggal_mulai' =>
+                'tanggal mulai',
+
+            'tanggal_selesai' =>
+                'tanggal selesai',
         ];
     }
 }

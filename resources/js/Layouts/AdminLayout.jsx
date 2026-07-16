@@ -1,61 +1,70 @@
-import { Link, usePage } from '@inertiajs/react';
-import { useState } from 'react';
+import NotificationMenu from '@/Components/NotificationMenu';
+import {
+    Link,
+    usePage,
+} from '@inertiajs/react';
+import {
+    useState,
+} from 'react';
 
-function IkonDashboard() {
+function Ikon({
+    children,
+}) {
     return (
         <svg
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
             strokeWidth="1.8"
-            className="h-5 w-5"
+            className="h-5 w-5 shrink-0"
             aria-hidden="true"
         >
-            <rect
-                x="3"
-                y="3"
-                width="7"
-                height="7"
-                rx="1"
-            />
-
-            <rect
-                x="14"
-                y="3"
-                width="7"
-                height="7"
-                rx="1"
-            />
-
-            <rect
-                x="3"
-                y="14"
-                width="7"
-                height="7"
-                rx="1"
-            />
-
-            <rect
-                x="14"
-                y="14"
-                width="7"
-                height="7"
-                rx="1"
-            />
+            {children}
         </svg>
+    );
+}
+
+function IkonDashboard() {
+    return (
+        <Ikon>
+            <rect
+                x="3"
+                y="3"
+                width="7"
+                height="7"
+                rx="1"
+            />
+
+            <rect
+                x="14"
+                y="3"
+                width="7"
+                height="7"
+                rx="1"
+            />
+
+            <rect
+                x="3"
+                y="14"
+                width="7"
+                height="7"
+                rx="1"
+            />
+
+            <rect
+                x="14"
+                y="14"
+                width="7"
+                height="7"
+                rx="1"
+            />
+        </Ikon>
     );
 }
 
 function IkonBooking() {
     return (
-        <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            className="h-5 w-5"
-            aria-hidden="true"
-        >
+        <Ikon>
             <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -66,20 +75,56 @@ function IkonBooking() {
                 strokeLinecap="round"
                 d="M8 13h3M8 17h6"
             />
-        </svg>
+        </Ikon>
+    );
+}
+
+function IkonStok() {
+    return (
+        <Ikon>
+            <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M4 7.5 12 3l8 4.5-8 4.5-8-4.5Z"
+            />
+
+            <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="m4 12 8 4.5 8-4.5M4 16.5 12 21l8-4.5"
+            />
+        </Ikon>
+    );
+}
+
+function IkonIdentitas() {
+    return (
+        <Ikon>
+            <rect
+                x="3"
+                y="5"
+                width="18"
+                height="14"
+                rx="2"
+            />
+
+            <circle
+                cx="8"
+                cy="11"
+                r="2"
+            />
+
+            <path
+                strokeLinecap="round"
+                d="M5.5 16c.8-1.7 4.2-1.7 5 0M13 10h5M13 14h4"
+            />
+        </Ikon>
     );
 }
 
 function IkonKendaraan() {
     return (
-        <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            className="h-5 w-5"
-            aria-hidden="true"
-        >
+        <Ikon>
             <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -106,87 +151,257 @@ function IkonKendaraan() {
                 fill="currentColor"
                 stroke="none"
             />
-        </svg>
+        </Ikon>
+    );
+}
+
+function IkonPengembalian() {
+    return (
+        <Ikon>
+            <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M9 7H5V3M5 7a8 8 0 1 1-1 7"
+            />
+
+            <path
+                strokeLinecap="round"
+                d="M12 8v5l3 2"
+            />
+        </Ikon>
+    );
+}
+
+function IkonRiwayat() {
+    return (
+        <Ikon>
+            <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M4 5h16v14H4V5Z"
+            />
+
+            <path
+                strokeLinecap="round"
+                d="M8 9h8M8 13h8M8 17h5"
+            />
+        </Ikon>
+    );
+}
+
+function IkonLaporan() {
+    return (
+        <Ikon>
+            <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M5 20V10M12 20V4M19 20v-7"
+            />
+
+            <path
+                strokeLinecap="round"
+                d="M3 20h18"
+            />
+        </Ikon>
     );
 }
 
 function IkonKeluar() {
     return (
-        <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            className="h-5 w-5"
-            aria-hidden="true"
-        >
+        <Ikon>
             <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 d="M14 8l4 4-4 4M18 12H8M10 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h5"
             />
-        </svg>
+        </Ikon>
     );
 }
 
 function IkonMenu() {
     return (
-        <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            className="h-5 w-5"
-            aria-hidden="true"
-        >
+        <Ikon>
             <path
                 strokeLinecap="round"
                 d="M4 6h16M4 12h16M4 18h16"
             />
-        </svg>
+        </Ikon>
     );
 }
 
 function IkonTutup() {
     return (
-        <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            className="h-5 w-5"
-            aria-hidden="true"
-        >
+        <Ikon>
             <path
                 strokeLinecap="round"
                 d="M6 6l12 12M18 6 6 18"
             />
-        </svg>
+        </Ikon>
     );
 }
 
-export default function AdminLayout({ children }) {
-    const { auth } = usePage().props;
+export default function AdminLayout({
+    children,
+}) {
+    const {
+        auth,
+        notifikasi,
+    } = usePage().props;
 
-    const [sidebarTerbuka, setSidebarTerbuka] =
-        useState(false);
+    const [
+        sidebarTerbuka,
+        setSidebarTerbuka,
+    ] = useState(false);
 
-    const user = auth?.user;
+    const user =
+        auth?.user ?? null;
 
-    const kelasMenu = (aktif) => {
+    const daftarNotifikasi =
+        Array.isArray(
+            notifikasi?.terbaru,
+        )
+            ? notifikasi.terbaru
+            : [];
+
+    const jumlahBelumDibaca =
+        Number(
+            notifikasi
+                ?.jumlah_belum_dibaca ??
+                0,
+        );
+
+    const kelasMenu = (
+        aktif,
+    ) => {
         return aktif
             ? 'flex items-center gap-3 rounded-xl bg-[#06B6D4] px-4 py-3 text-sm font-bold text-[#0B1120] shadow-lg shadow-cyan-950/30'
             : 'flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-[#94A3B8] transition hover:bg-[#1E293B] hover:text-[#F8FAFC]';
     };
 
-    const tutupSidebar = () => {
-        setSidebarTerbuka(false);
-    };
+    const tutupSidebar = () =>
+        setSidebarTerbuka(
+            false,
+        );
+
+    const menuUtama = [
+        {
+            label:
+                'Dashboard',
+
+            routeName:
+                'admin.dashboard',
+
+            active:
+                'admin.dashboard',
+
+            icon:
+                <IkonDashboard />,
+        },
+
+        {
+            label:
+                'Kelola Booking',
+
+            routeName:
+                'admin.booking.index',
+
+            active:
+                'admin.booking.*',
+
+            icon:
+                <IkonBooking />,
+        },
+
+        {
+            label:
+                'Cek Ketersediaan',
+
+            routeName:
+                'admin.ketersediaan.index',
+
+            active:
+                'admin.ketersediaan.*',
+
+            icon:
+                <IkonStok />,
+        },
+    ];
+
+    const menuOperasional = [
+        {
+            label:
+                'Verifikasi Identitas',
+
+            routeName:
+                'admin.identitas.index',
+
+            active:
+                'admin.identitas.*',
+
+            icon:
+                <IkonIdentitas />,
+        },
+
+        {
+            label:
+                'Kelola Kendaraan',
+
+            routeName:
+                'admin.kendaraan.index',
+
+            active:
+                'admin.kendaraan.*',
+
+            icon:
+                <IkonKendaraan />,
+        },
+
+        {
+            label:
+                'Pengembalian',
+
+            routeName:
+                'admin.pengembalian.index',
+
+            active:
+                'admin.pengembalian.*',
+
+            icon:
+                <IkonPengembalian />,
+        },
+
+        {
+            label:
+                'Riwayat Transaksi',
+
+            routeName:
+                'admin.riwayat.index',
+
+            active:
+                'admin.riwayat.*',
+
+            icon:
+                <IkonRiwayat />,
+        },
+
+        {
+            label:
+                'Laporan',
+
+            routeName:
+                'admin.laporan',
+
+            active:
+                'admin.laporan',
+
+            icon:
+                <IkonLaporan />,
+        },
+    ];
 
     return (
         <div className="min-h-screen bg-[#0B1120] text-[#F8FAFC]">
             <div className="flex min-h-screen">
-                {/* SIDEBAR */}
                 <aside
                     className={`fixed inset-y-0 left-0 z-50 w-72 border-r border-slate-800 bg-[#10192B] transition-transform duration-300 md:sticky md:top-0 md:h-screen md:translate-x-0 ${
                         sidebarTerbuka
@@ -195,7 +410,6 @@ export default function AdminLayout({ children }) {
                     }`}
                 >
                     <div className="flex h-full flex-col overflow-y-auto p-5">
-                        {/* LOGO */}
                         <div className="flex items-center justify-between">
                             <Link
                                 href={route(
@@ -203,9 +417,12 @@ export default function AdminLayout({ children }) {
                                 )}
                                 viewTransition
                                 className="text-2xl font-black"
-                                onClick={tutupSidebar}
+                                onClick={
+                                    tutupSidebar
+                                }
                             >
                                 Rent
+
                                 <span className="text-[#06B6D4]">
                                     Drive
                                 </span>
@@ -213,7 +430,9 @@ export default function AdminLayout({ children }) {
 
                             <button
                                 type="button"
-                                onClick={tutupSidebar}
+                                onClick={
+                                    tutupSidebar
+                                }
                                 className="rounded-lg p-2 text-[#94A3B8] transition hover:bg-[#1E293B] hover:text-white md:hidden"
                                 aria-label="Tutup menu admin"
                             >
@@ -221,12 +440,13 @@ export default function AdminLayout({ children }) {
                             </button>
                         </div>
 
-                        {/* INFORMASI ADMIN */}
-                        <div className="mt-8 rounded-2xl border border-slate-800 bg-[#1E293B] p-4">
+                        <div className="mt-6 rounded-2xl border border-slate-800 bg-[#1E293B] p-4">
                             <div className="flex items-center gap-3">
                                 <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#06B6D4]/10 font-extrabold text-[#06B6D4]">
                                     {user?.name
-                                        ?.charAt(0)
+                                        ?.charAt(
+                                            0,
+                                        )
                                         ?.toUpperCase() ??
                                         'A'}
                                 </div>
@@ -249,115 +469,108 @@ export default function AdminLayout({ children }) {
                             </p>
                         </div>
 
-                        {/* MENU UTAMA */}
-                        <nav className="mt-8 space-y-2">
-                            <Link
-                                href={route(
-                                    'admin.dashboard',
-                                )}
-                                viewTransition
-                                onClick={tutupSidebar}
-                                className={kelasMenu(
-                                    route().current(
-                                        'admin.dashboard',
-                                    ),
-                                )}
-                            >
-                                <IkonDashboard />
-                                Dashboard
-                            </Link>
+                        <nav className="mt-6 space-y-2">
+                            {menuUtama.map(
+                                (
+                                    menu,
+                                ) => (
+                                    <Link
+                                        key={
+                                            menu.routeName
+                                        }
+                                        href={route(
+                                            menu.routeName,
+                                        )}
+                                        viewTransition
+                                        onClick={
+                                            tutupSidebar
+                                        }
+                                        className={kelasMenu(
+                                            route().current(
+                                                menu.active,
+                                            ),
+                                        )}
+                                    >
+                                        {
+                                            menu.icon
+                                        }
 
-                            <Link
-                                href={route(
-                                    'admin.booking.index',
-                                )}
-                                viewTransition
-                                onClick={tutupSidebar}
-                                className={kelasMenu(
-                                    route().current(
-                                        'admin.booking.*',
-                                    ),
-                                )}
-                            >
-                                <IkonBooking />
-                                Kelola Booking
-                            </Link>
+                                        {
+                                            menu.label
+                                        }
+                                    </Link>
+                                ),
+                            )}
                         </nav>
 
-                        {/* MENU OPERASIONAL */}
-                        <div className="mt-8 border-t border-slate-800 pt-5">
+                        <div className="mt-6 border-t border-slate-800 pt-5">
                             <p className="px-4 text-[10px] font-bold uppercase tracking-[0.18em] text-[#64748B]">
                                 Operasional
                             </p>
 
                             <div className="mt-3 space-y-2">
-                                <Link
-                                    href={route(
-                                        'admin.kendaraan.index',
-                                    )}
-                                    viewTransition
-                                    onClick={
-                                        tutupSidebar
-                                    }
-                                    className={kelasMenu(
-                                        route().current(
-                                            'admin.kendaraan.*',
-                                        ),
-                                    )}
-                                >
-                                    <IkonKendaraan />
-                                    Kelola Kendaraan
-                                </Link>
+                                {menuOperasional.map(
+                                    (
+                                        menu,
+                                    ) => (
+                                        <Link
+                                            key={
+                                                menu.routeName
+                                            }
+                                            href={route(
+                                                menu.routeName,
+                                            )}
+                                            viewTransition
+                                            onClick={
+                                                tutupSidebar
+                                            }
+                                            className={kelasMenu(
+                                                route().current(
+                                                    menu.active,
+                                                ),
+                                            )}
+                                        >
+                                            {
+                                                menu.icon
+                                            }
 
-                                {[
-                                    'Pengembalian',
-                                    'Riwayat Transaksi',
-                                    'Laporan',
-                                ].map((menu) => (
-                                    <div
-                                        key={menu}
-                                        className="flex items-center justify-between rounded-xl px-4 py-3 text-sm text-[#64748B]"
-                                    >
-                                        <span>
-                                            {menu}
-                                        </span>
-
-                                        <span className="rounded-full bg-slate-800 px-2 py-1 text-[9px] font-bold uppercase">
-                                            Segera
-                                        </span>
-                                    </div>
-                                ))}
+                                            {
+                                                menu.label
+                                            }
+                                        </Link>
+                                    ),
+                                )}
                             </div>
                         </div>
 
-                        {/* INFORMASI SISTEM */}
                         <div className="mt-auto border-t border-slate-800 pt-5">
                             <p className="text-xs leading-5 text-[#64748B]">
-                                Kelola booking, armada,
-                                pembayaran, dan operasional
-                                RentDrive melalui panel
+                                Kelola booking,
+                                armada,
+                                pembayaran,
+                                pengembalian, dan
+                                laporan RentDrive
+                                melalui panel
                                 administrator.
                             </p>
                         </div>
                     </div>
                 </aside>
 
-                {/* OVERLAY SIDEBAR MOBILE */}
                 {sidebarTerbuka && (
                     <button
                         type="button"
-                        onClick={tutupSidebar}
+                        onClick={
+                            tutupSidebar
+                        }
                         aria-label="Tutup latar menu"
                         className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm md:hidden"
                     />
                 )}
 
-                {/* AREA KONTEN */}
                 <div className="min-w-0 flex-1">
-                    {/* HEADER ADMIN */}
                     <header className="sticky top-0 z-30 border-b border-slate-800 bg-[#0B1120]/95 backdrop-blur">
-                        <div className="flex h-16 items-center justify-between px-5 sm:px-8">
-                            {/* BAGIAN KIRI HEADER */}
+                        <div className="flex h-16 items-center justify-between px-4 sm:px-6">
                             <div className="flex min-w-0 items-center gap-3">
                                 <button
                                     type="button"
@@ -374,19 +587,25 @@ export default function AdminLayout({ children }) {
 
                                 <div className="min-w-0">
                                     <p className="text-sm font-bold text-[#F8FAFC]">
-                                        Panel
-                                        Administrator
+                                        Panel Administrator
                                     </p>
 
                                     <p className="hidden text-xs text-[#64748B] sm:block">
-                                        Sistem Operasional
-                                        RentDrive
+                                        Sistem Operasional RentDrive
                                     </p>
                                 </div>
                             </div>
 
-                            {/* BAGIAN KANAN HEADER */}
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-2 sm:gap-3">
+                                <NotificationMenu
+                                    daftar={
+                                        daftarNotifikasi
+                                    }
+                                    jumlahBelumDibaca={
+                                        jumlahBelumDibaca
+                                    }
+                                />
+
                                 <div className="hidden text-right lg:block">
                                     <p className="max-w-48 truncate text-sm font-bold text-[#F8FAFC]">
                                         {user?.name ??
@@ -407,7 +626,7 @@ export default function AdminLayout({ children }) {
                                     )}
                                     method="post"
                                     as="button"
-                                    className="flex items-center gap-2 rounded-xl border border-rose-500/40 bg-rose-500/10 px-4 py-2.5 text-sm font-bold text-rose-300 transition hover:border-rose-500/70 hover:bg-rose-500/20 hover:text-rose-200"
+                                    className="flex items-center gap-2 rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2.5 text-sm font-bold text-rose-300 transition hover:border-rose-500/70 hover:bg-rose-500/20 hover:text-rose-200 sm:px-4"
                                 >
                                     <IkonKeluar />
 
@@ -419,7 +638,6 @@ export default function AdminLayout({ children }) {
                         </div>
                     </header>
 
-                    {/* HALAMAN ADMIN */}
                     <div className="page-transition">
                         {children}
                     </div>

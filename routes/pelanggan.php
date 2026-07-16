@@ -2,29 +2,13 @@
 
 use App\Http\Controllers\Pelanggan\BookingController;
 use App\Http\Controllers\Pelanggan\DashboardController;
+use App\Http\Controllers\Pelanggan\IdentitasController;
 use App\Http\Controllers\Pelanggan\KatalogController;
 use App\Http\Controllers\Pelanggan\PembayaranController;
+use App\Http\Controllers\Pelanggan\PembayaranDendaController;
 use App\Http\Controllers\Pelanggan\ProfileController;
 use App\Http\Controllers\Pelanggan\RiwayatSewaController;
 use Illuminate\Support\Facades\Route;
-
-/*
-|--------------------------------------------------------------------------
-| ROUTE PELANGGAN
-|--------------------------------------------------------------------------
-|
-| Seluruh route pada file ini hanya dapat diakses oleh pengguna yang:
-|
-| 1. Sudah login
-| 2. Memiliki role pelanggan
-|
-| Prefix URL:
-| /pelanggan
-|
-| Prefix nama route:
-| pelanggan.
-|
-*/
 
 Route::middleware([
     'auth',
@@ -32,10 +16,10 @@ Route::middleware([
 ])
     ->prefix('pelanggan')
     ->name('pelanggan.')
-    ->group(function () {
+    ->group(function (): void {
         /*
         |--------------------------------------------------------------------------
-        | DASHBOARD PELANGGAN
+        | DASHBOARD
         |--------------------------------------------------------------------------
         */
 
@@ -68,12 +52,75 @@ Route::middleware([
 
         /*
         |--------------------------------------------------------------------------
+        | IDENTITAS PER TRANSAKSI
+        |--------------------------------------------------------------------------
+        */
+
+        Route::get('/identitas/{id}', [
+            IdentitasController::class,
+            'show',
+        ])
+            ->whereNumber('id')
+            ->name('identitas.show');
+
+        Route::post('/identitas/{id}', [
+            IdentitasController::class,
+            'store',
+        ])
+            ->whereNumber('id')
+            ->name('identitas.store');
+
+        /*
+        |--------------------------------------------------------------------------
+        | PEMBAYARAN SEWA UTAMA
+        |--------------------------------------------------------------------------
+        */
+
+        Route::get('/pembayaran/{id}', [
+            PembayaranController::class,
+            'show',
+        ])
+            ->whereNumber('id')
+            ->name('pembayaran.show');
+
+        Route::post('/pembayaran/{id}', [
+            PembayaranController::class,
+            'store',
+        ])
+            ->whereNumber('id')
+            ->name('sewa.pembayaran.unggah');
+
+        /*
+        |--------------------------------------------------------------------------
+        | PEMBAYARAN DENDA
+        |--------------------------------------------------------------------------
+        */
+
+        Route::get('/denda/{id}', [
+            PembayaranDendaController::class,
+            'show',
+        ])
+            ->whereNumber('id')
+            ->name('denda.show');
+
+        Route::post('/denda/{id}', [
+            PembayaranDendaController::class,
+            'store',
+        ])
+            ->whereNumber('id')
+            ->name('denda.store');
+
+        Route::get('/denda/{id}/bukti', [
+            PembayaranDendaController::class,
+            'bukti',
+        ])
+            ->whereNumber('id')
+            ->name('denda.bukti');
+
+        /*
+        |--------------------------------------------------------------------------
         | PROFIL PELANGGAN
         |--------------------------------------------------------------------------
-        |
-        | Controller:
-        | app/Http/Controllers/Pelanggan/ProfileController.php
-        |
         */
 
         Route::get('/profil', [
@@ -101,15 +148,4 @@ Route::middleware([
             BookingController::class,
             'store',
         ])->name('sewa.simpan');
-
-        /*
-        |--------------------------------------------------------------------------
-        | UNGGAH BUKTI PEMBAYARAN
-        |--------------------------------------------------------------------------
-        */
-
-        Route::post('/sewa/pembayaran/{id}', [
-            PembayaranController::class,
-            'store',
-        ])->name('sewa.pembayaran.unggah');
     });

@@ -1,323 +1,255 @@
-import { Head, useForm, usePage } from '@inertiajs/react';
+import PelangganLayout from '@/Layouts/PelangganLayout';
+import DeleteUserForm from './Partials/DeleteUserForm';
+import UpdatePasswordForm from './Partials/UpdatePasswordForm';
+import UpdateProfileInformationForm from './Partials/UpdateProfileInformationForm';
+import {
+    Head,
+    Link,
+    usePage,
+} from '@inertiajs/react';
 
-export default function Edit({ mustVerifyEmail, status }) {
-    const { auth } = usePage().props;
-    const user = auth?.user;
+function IkonProfil() {
+    return (
+        <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            className="h-5 w-5"
+            aria-hidden="true"
+        >
+            <circle
+                cx="12"
+                cy="8"
+                r="3"
+            />
 
-    const profilForm = useForm({
-        name: user?.name ?? '',
-        email: user?.email ?? '',
-    });
+            <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M5 20c.8-4 3.1-6 7-6s6.2 2 7 6"
+            />
+        </svg>
+    );
+}
 
-    const passwordForm = useForm({
-        current_password: '',
-        password: '',
-        password_confirmation: '',
-    });
+function IkonKunci() {
+    return (
+        <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            className="h-5 w-5"
+            aria-hidden="true"
+        >
+            <rect
+                x="5"
+                y="10"
+                width="14"
+                height="11"
+                rx="2"
+            />
 
-    const hapusForm = useForm({
-        password: '',
-    });
+            <path
+                strokeLinecap="round"
+                d="M8 10V7a4 4 0 0 1 8 0v3"
+            />
+        </svg>
+    );
+}
 
-    const simpanProfil = (event) => {
-        event.preventDefault();
+function IkonPeringatan() {
+    return (
+        <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            className="h-5 w-5"
+            aria-hidden="true"
+        >
+            <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M10.3 3.9 2.6 17.2A2 2 0 0 0 4.3 20h15.4a2 2 0 0 0 1.7-2.8L13.7 3.9a2 2 0 0 0-3.4 0Z"
+            />
 
-        profilForm.patch(route('pelanggan.profile.update'), {
-            preserveScroll: true,
-        });
-    };
+            <path
+                strokeLinecap="round"
+                d="M12 8v5"
+            />
 
-    const ubahPassword = (event) => {
-        event.preventDefault();
+            <circle
+                cx="12"
+                cy="16.5"
+                r=".7"
+                fill="currentColor"
+                stroke="none"
+            />
+        </svg>
+    );
+}
 
-        passwordForm.put(route('password.update'), {
-            preserveScroll: true,
+function HeaderKartu({
+    ikon,
+    judul,
+    deskripsi,
+    danger = false,
+}) {
+    return (
+        <header
+            className={`flex items-start gap-3 border-b px-4 py-3 ${
+                danger
+                    ? 'border-rose-500/30'
+                    : 'border-slate-800'
+            }`}
+        >
+            <div
+                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border ${
+                    danger
+                        ? 'border-rose-500/30 bg-rose-500/10 text-rose-300'
+                        : 'border-[#06B6D4]/20 bg-[#06B6D4]/10 text-[#06B6D4]'
+                }`}
+            >
+                {ikon}
+            </div>
 
-            onSuccess: () => {
-                passwordForm.reset();
-            },
-        });
-    };
+            <div>
+                <h2
+                    className={`text-sm font-black ${
+                        danger
+                            ? 'text-rose-300'
+                            : 'text-white'
+                    }`}
+                >
+                    {judul}
+                </h2>
 
-    const hapusAkun = (event) => {
-        event.preventDefault();
+                <p className="mt-1 text-[10px] leading-4 text-slate-500">
+                    {deskripsi}
+                </p>
+            </div>
+        </header>
+    );
+}
 
-        const disetujui = window.confirm(
-            'Akun akan dihapus dan tindakan ini tidak dapat dibatalkan.'
-        );
+export default function Edit({
+    mustVerifyEmail,
+    status,
+}) {
+    const {
+        auth,
+    } = usePage().props;
 
-        if (!disetujui) {
-            return;
-        }
+    const user =
+        auth?.user ?? null;
 
-        hapusForm.delete(route('pelanggan.profile.destroy'), {
-            preserveScroll: true,
-        });
-    };
+    const hurufAwal =
+        user?.name
+            ?.charAt(0)
+            ?.toUpperCase() ?? 'P';
 
     return (
         <>
             <Head title="Profil Pelanggan" />
 
-            <main className="mx-auto max-w-7xl px-5 py-10 sm:px-6 lg:px-8">
-                <section className="rounded-3xl border border-slate-800 bg-[#10192B] px-6 py-10 text-center shadow-2xl">
-                    <p className="text-xs font-bold uppercase tracking-[0.25em] text-[#06B6D4]">
-                        Akun Pelanggan
-                    </p>
+            <main className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 lg:px-8">
+                <section className="rounded-2xl border border-slate-800 bg-[#10192B] p-4">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex min-w-0 items-center gap-3">
+                            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-[#06B6D4]/30 bg-[#06B6D4]/10 text-base font-black text-[#06B6D4]">
+                                {hurufAwal}
+                            </div>
 
-                    <h1 className="mt-4 text-3xl font-extrabold sm:text-4xl">
-                        Kelola Profil
-                    </h1>
+                            <div className="min-w-0">
+                                <p className="text-[9px] font-black uppercase tracking-[0.18em] text-[#06B6D4]">
+                                    Akun Pelanggan
+                                </p>
 
-                    <p className="mx-auto mt-4 max-w-2xl text-sm leading-7 text-[#94A3B8]">
-                        Perbarui identitas akun, kata sandi, dan pengaturan
-                        keamanan pelanggan RentDrive.
-                    </p>
+                                <h1 className="mt-1 truncate text-xl font-black text-white">
+                                    {user?.name ??
+                                        'Pelanggan'}
+                                </h1>
+
+                                <p className="mt-1 truncate text-[10px] text-slate-500">
+                                    {user?.email ??
+                                        '-'}
+                                </p>
+                            </div>
+                        </div>
+
+                        <Link
+                            href={route(
+                                'pelanggan.riwayat',
+                            )}
+                            className="inline-flex h-9 items-center justify-center rounded-lg border border-slate-700 px-4 text-xs font-black text-slate-300 transition hover:border-[#06B6D4] hover:text-[#06B6D4]"
+                        >
+                            Riwayat Sewa
+                        </Link>
+                    </div>
                 </section>
 
-                {status && (
-                    <div className="mt-7 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-5 py-4 text-sm text-emerald-300">
-                        {status}
-                    </div>
-                )}
-
-                <div className="mt-8 grid gap-7 lg:grid-cols-2">
-                    {/* INFORMASI PROFIL */}
-                    <section className="rounded-2xl border border-slate-800 bg-[#1E293B] p-6 shadow-xl sm:p-8">
-                        <h2 className="text-xl font-bold">
-                            Informasi Profil
-                        </h2>
-
-                        <p className="mt-2 text-sm leading-6 text-[#94A3B8]">
-                            Gunakan nama dan alamat email aktif.
-                        </p>
-
-                        <form
-                            onSubmit={simpanProfil}
-                            className="mt-7 space-y-5"
-                        >
-                            <div>
-                                <label
-                                    htmlFor="name"
-                                    className="mb-2 block text-xs font-bold uppercase tracking-wider text-[#94A3B8]"
-                                >
-                                    Nama Lengkap
-                                </label>
-
-                                <input
-                                    id="name"
-                                    type="text"
-                                    value={profilForm.data.name}
-                                    onChange={(event) =>
-                                        profilForm.setData(
-                                            'name',
-                                            event.target.value
-                                        )
-                                    }
-                                    className="w-full rounded-xl border border-slate-700 bg-[#0B1120] px-4 py-3.5 text-[#F8FAFC] outline-none focus:border-[#06B6D4] focus:ring-1 focus:ring-[#06B6D4]"
-                                />
-
-                                {profilForm.errors.name && (
-                                    <p className="mt-2 text-xs text-rose-400">
-                                        {profilForm.errors.name}
-                                    </p>
-                                )}
-                            </div>
-
-                            <div>
-                                <label
-                                    htmlFor="email"
-                                    className="mb-2 block text-xs font-bold uppercase tracking-wider text-[#94A3B8]"
-                                >
-                                    Alamat Email
-                                </label>
-
-                                <input
-                                    id="email"
-                                    type="email"
-                                    value={profilForm.data.email}
-                                    onChange={(event) =>
-                                        profilForm.setData(
-                                            'email',
-                                            event.target.value
-                                        )
-                                    }
-                                    className="w-full rounded-xl border border-slate-700 bg-[#0B1120] px-4 py-3.5 text-[#F8FAFC] outline-none focus:border-[#06B6D4] focus:ring-1 focus:ring-[#06B6D4]"
-                                />
-
-                                {profilForm.errors.email && (
-                                    <p className="mt-2 text-xs text-rose-400">
-                                        {profilForm.errors.email}
-                                    </p>
-                                )}
-                            </div>
-
-                            {mustVerifyEmail &&
-                                user?.email_verified_at === null && (
-                                    <p className="text-sm text-amber-300">
-                                        Alamat email belum diverifikasi.
-                                    </p>
-                                )}
-
-                            <button
-                                type="submit"
-                                disabled={profilForm.processing}
-                                className="rounded-xl bg-[#06B6D4] px-6 py-3 text-sm font-bold text-[#0B1120] hover:bg-[#0891B2] disabled:opacity-50"
-                            >
-                                {profilForm.processing
-                                    ? 'Menyimpan...'
-                                    : 'Simpan Profil'}
-                            </button>
-                        </form>
-                    </section>
-
-                    {/* PASSWORD */}
-                    <section className="rounded-2xl border border-slate-800 bg-[#1E293B] p-6 shadow-xl sm:p-8">
-                        <h2 className="text-xl font-bold">
-                            Ubah Kata Sandi
-                        </h2>
-
-                        <p className="mt-2 text-sm leading-6 text-[#94A3B8]">
-                            Gunakan kata sandi yang kuat dan tidak mudah
-                            ditebak.
-                        </p>
-
-                        <form
-                            onSubmit={ubahPassword}
-                            className="mt-7 space-y-5"
-                        >
-                            <div>
-                                <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[#94A3B8]">
-                                    Kata Sandi Saat Ini
-                                </label>
-
-                                <input
-                                    type="password"
-                                    value={
-                                        passwordForm.data.current_password
-                                    }
-                                    onChange={(event) =>
-                                        passwordForm.setData(
-                                            'current_password',
-                                            event.target.value
-                                        )
-                                    }
-                                    className="w-full rounded-xl border border-slate-700 bg-[#0B1120] px-4 py-3.5 outline-none focus:border-[#06B6D4] focus:ring-1 focus:ring-[#06B6D4]"
-                                />
-
-                                {passwordForm.errors.current_password && (
-                                    <p className="mt-2 text-xs text-rose-400">
-                                        {
-                                            passwordForm.errors
-                                                .current_password
-                                        }
-                                    </p>
-                                )}
-                            </div>
-
-                            <div>
-                                <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[#94A3B8]">
-                                    Kata Sandi Baru
-                                </label>
-
-                                <input
-                                    type="password"
-                                    value={passwordForm.data.password}
-                                    onChange={(event) =>
-                                        passwordForm.setData(
-                                            'password',
-                                            event.target.value
-                                        )
-                                    }
-                                    className="w-full rounded-xl border border-slate-700 bg-[#0B1120] px-4 py-3.5 outline-none focus:border-[#06B6D4] focus:ring-1 focus:ring-[#06B6D4]"
-                                />
-
-                                {passwordForm.errors.password && (
-                                    <p className="mt-2 text-xs text-rose-400">
-                                        {passwordForm.errors.password}
-                                    </p>
-                                )}
-                            </div>
-
-                            <div>
-                                <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[#94A3B8]">
-                                    Konfirmasi Kata Sandi
-                                </label>
-
-                                <input
-                                    type="password"
-                                    value={
-                                        passwordForm.data
-                                            .password_confirmation
-                                    }
-                                    onChange={(event) =>
-                                        passwordForm.setData(
-                                            'password_confirmation',
-                                            event.target.value
-                                        )
-                                    }
-                                    className="w-full rounded-xl border border-slate-700 bg-[#0B1120] px-4 py-3.5 outline-none focus:border-[#06B6D4] focus:ring-1 focus:ring-[#06B6D4]"
-                                />
-                            </div>
-
-                            <button
-                                type="submit"
-                                disabled={passwordForm.processing}
-                                className="rounded-xl bg-[#06B6D4] px-6 py-3 text-sm font-bold text-[#0B1120] hover:bg-[#0891B2] disabled:opacity-50"
-                            >
-                                {passwordForm.processing
-                                    ? 'Memperbarui...'
-                                    : 'Perbarui Kata Sandi'}
-                            </button>
-                        </form>
-                    </section>
-                </div>
-
-                {/* HAPUS AKUN */}
-                <section className="mt-7 rounded-2xl border border-rose-500/30 bg-rose-500/5 p-6 shadow-xl sm:p-8">
-                    <h2 className="text-xl font-bold text-rose-300">
-                        Hapus Akun
-                    </h2>
-
-                    <p className="mt-2 max-w-2xl text-sm leading-7 text-[#94A3B8]">
-                        Setelah akun dihapus, seluruh akses ke akun pelanggan
-                        akan dihentikan. Masukkan kata sandi untuk
-                        mengonfirmasi.
-                    </p>
-
-                    <form
-                        onSubmit={hapusAkun}
-                        className="mt-6 max-w-xl"
-                    >
-                        <input
-                            type="password"
-                            value={hapusForm.data.password}
-                            onChange={(event) =>
-                                hapusForm.setData(
-                                    'password',
-                                    event.target.value
-                                )
+                <section className="mt-3 grid gap-3 lg:grid-cols-2">
+                    <div className="h-fit overflow-hidden rounded-2xl border border-slate-800 bg-[#10192B]">
+                        <HeaderKartu
+                            ikon={
+                                <IkonProfil />
                             }
-                            placeholder="Masukkan kata sandi"
-                            className="w-full rounded-xl border border-rose-500/30 bg-[#0B1120] px-4 py-3.5 outline-none focus:border-rose-400 focus:ring-1 focus:ring-rose-400"
+                            judul="Informasi Profil"
+                            deskripsi="Perbarui nama dan alamat email akun."
                         />
 
-                        {hapusForm.errors.password && (
-                            <p className="mt-2 text-xs text-rose-400">
-                                {hapusForm.errors.password}
-                            </p>
-                        )}
+                        <div className="p-4">
+                            <UpdateProfileInformationForm
+                                mustVerifyEmail={
+                                    mustVerifyEmail
+                                }
+                                status={
+                                    status
+                                }
+                            />
+                        </div>
+                    </div>
 
-                        <button
-                            type="submit"
-                            disabled={hapusForm.processing}
-                            className="mt-4 rounded-xl bg-rose-600 px-6 py-3 text-sm font-bold text-white hover:bg-rose-700 disabled:opacity-50"
-                        >
-                            Hapus Akun Permanen
-                        </button>
-                    </form>
+                    <div className="space-y-3">
+                        <section className="overflow-hidden rounded-2xl border border-slate-800 bg-[#10192B]">
+                            <HeaderKartu
+                                ikon={
+                                    <IkonKunci />
+                                }
+                                judul="Ubah Kata Sandi"
+                                deskripsi="Gunakan minimal delapan karakter."
+                            />
+
+                            <div className="p-4">
+                                <UpdatePasswordForm />
+                            </div>
+                        </section>
+
+                        <section className="overflow-hidden rounded-2xl border border-rose-500/40 bg-rose-500/[0.04]">
+                            <HeaderKartu
+                                ikon={
+                                    <IkonPeringatan />
+                                }
+                                judul="Hapus Akun"
+                                deskripsi="Penghapusan akun bersifat permanen dan menghentikan seluruh akses pelanggan."
+                                danger
+                            />
+
+                            <div className="p-4">
+                                <DeleteUserForm />
+                            </div>
+                        </section>
+                    </div>
                 </section>
             </main>
         </>
     );
 }
+
+Edit.layout = (page) => (
+    <PelangganLayout>
+        {page}
+    </PelangganLayout>
+);

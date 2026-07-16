@@ -12,20 +12,17 @@ class LandingController extends Controller
 {
     /**
      * Menampilkan landing page RentDrive.
+     *
+     * Data kendaraan dipetakan secara eksplisit agar informasi internal
+     * operasional tidak ikut masuk ke payload halaman publik.
      */
     public function index(): Response
     {
         $kendaraans = Kendaraan::query()
-            ->where(
-                'status',
-                'tersedia'
-            )
-            ->where(
-                'jumlah_unit',
-                '>',
-                0
-            )
-            ->select([
+            ->where('status', 'tersedia')
+            ->where('jumlah_unit', '>', 0)
+            ->latest()
+            ->get([
                 'id',
                 'nama_kendaraan',
                 'merek',
@@ -38,21 +35,27 @@ class LandingController extends Controller
                 'fasilitas',
                 'deskripsi_kendaraan',
             ])
-            ->latest()
-            ->get();
+            ->map(
+                fn (Kendaraan $kendaraan): array => [
+                    'id' => $kendaraan->id,
+                    'nama_kendaraan' => $kendaraan->nama_kendaraan,
+                    'merek' => $kendaraan->merek,
+                    'warna' => $kendaraan->warna,
+                    'tahun_pembuatan' => $kendaraan->tahun_pembuatan,
+                    'transmisi' => $kendaraan->transmisi,
+                    'kapasitas_penumpang' => $kendaraan->kapasitas_penumpang,
+                    'harga_per_hari' => $kendaraan->harga_per_hari,
+                    'foto_kendaraan' => $kendaraan->foto_kendaraan,
+                    'fasilitas' => $kendaraan->fasilitas,
+                    'deskripsi_kendaraan' => $kendaraan->deskripsi_kendaraan,
+                ]
+            )
+            ->values();
 
-        return Inertia::render(
-            'HalamanUtama',
-            [
-                'canLogin' =>
-                    Route::has('login'),
-
-                'canRegister' =>
-                    Route::has('register'),
-
-                'kendaraans' =>
-                    $kendaraans,
-            ]
-        );
+        return Inertia::render('HalamanUtama', [
+            'canLogin' => Route::has('login'),
+            'canRegister' => Route::has('register'),
+            'kendaraans' => $kendaraans,
+        ]);
     }
 }

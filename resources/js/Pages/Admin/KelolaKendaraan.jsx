@@ -4,16 +4,20 @@ import {
     useForm,
     usePage,
 } from '@inertiajs/react';
-import { useMemo, useState } from 'react';
+import {
+    useEffect,
+    useMemo,
+    useState,
+} from 'react';
 
 const dataAwal = {
     _method: 'post',
     nama_kendaraan: '',
     merek: '',
     warna: '',
-    tahun_pembuatan: new Date()
-        .getFullYear()
-        .toString(),
+    tahun_pembuatan: String(
+        new Date().getFullYear(),
+    ),
     transmisi: 'manual',
     kapasitas_penumpang: '1',
     harga_per_hari: '',
@@ -25,27 +29,82 @@ const dataAwal = {
     deskripsi_kendaraan: '',
 };
 
-const kelasInput =
-    'w-full rounded-xl border border-slate-700 bg-[#0B1120] px-4 py-3 text-sm text-[#F8FAFC] outline-none transition placeholder:text-slate-500 focus:border-[#06B6D4] focus:ring-1 focus:ring-[#06B6D4]';
+const inputClass =
+    'h-10 w-full rounded-lg border border-slate-700 bg-[#0B1120] px-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-[#06B6D4] focus:ring-1 focus:ring-[#06B6D4]';
 
-function PesanError({ message }) {
+const textareaClass =
+    'w-full resize-none rounded-lg border border-slate-700 bg-[#0B1120] px-3 py-2.5 text-sm leading-5 text-white outline-none placeholder:text-slate-600 focus:border-[#06B6D4] focus:ring-1 focus:ring-[#06B6D4]';
+
+const statusInfo = {
+    tersedia: {
+        label: 'Tersedia',
+        className:
+            'border-emerald-500/30 bg-emerald-500/10 text-emerald-300',
+    },
+
+    perbaikan: {
+        label: 'Perbaikan',
+        className:
+            'border-amber-500/30 bg-amber-500/10 text-amber-300',
+    },
+
+    tidak_aktif: {
+        label: 'Tidak Aktif',
+        className:
+            'border-slate-600 bg-slate-800 text-slate-300',
+    },
+};
+
+const formatRupiah = (nilai) =>
+    new Intl.NumberFormat('id-ID', {
+        style: 'currency',
+        currency: 'IDR',
+        maximumFractionDigits: 0,
+    }).format(Number(nilai ?? 0));
+
+const fotoUrl = (foto) => {
+    if (!foto) {
+        return null;
+    }
+
+    const value = String(foto).trim();
+
+    if (
+        /^(https?:\/\/|\/|blob:)/.test(value)
+    ) {
+        return value;
+    }
+
+    return `/storage/${value}`;
+};
+
+function ErrorText({
+    message,
+}) {
     if (!message) {
         return null;
     }
 
     return (
-        <p className="mt-1.5 text-xs font-medium text-rose-400">
+        <p className="mt-1 text-[11px] font-medium text-rose-400">
             {message}
         </p>
     );
 }
 
-function LabelInput({ children, wajib = false }) {
+function Label({
+    htmlFor,
+    children,
+    required = false,
+}) {
     return (
-        <label className="mb-2 block text-xs font-bold uppercase tracking-[0.14em] text-[#94A3B8]">
+        <label
+            htmlFor={htmlFor}
+            className="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400"
+        >
             {children}
 
-            {wajib && (
+            {required && (
                 <span className="ml-1 text-rose-400">
                     *
                 </span>
@@ -54,116 +113,205 @@ function LabelInput({ children, wajib = false }) {
     );
 }
 
+function Field({
+    id,
+    label,
+    required = false,
+    error,
+    className = '',
+    children,
+}) {
+    return (
+        <div className={className}>
+            <Label
+                htmlFor={id}
+                required={required}
+            >
+                {label}
+            </Label>
+
+            {children}
+
+            <ErrorText message={error} />
+        </div>
+    );
+}
+
+function Stat({
+    label,
+    value,
+    valueClass = 'text-white',
+}) {
+    return (
+        <div className="rounded-xl border border-slate-800 bg-[#10192B] px-3 py-2.5">
+            <p className="text-[9px] font-bold uppercase tracking-[0.13em] text-slate-500">
+                {label}
+            </p>
+
+            <p
+                className={`mt-0.5 text-xl font-black ${valueClass}`}
+            >
+                {value}
+            </p>
+        </div>
+    );
+}
+
+function VehiclePhoto({
+    foto,
+    nama,
+    className = '',
+}) {
+    const [failed, setFailed] =
+        useState(false);
+
+    const url = fotoUrl(foto);
+
+    if (!url || failed) {
+        return (
+            <div
+                className={`flex items-center justify-center bg-[#0B1120] text-2xl text-slate-600 ${className}`}
+            >
+                🚘
+            </div>
+        );
+    }
+
+    return (
+        <img
+            src={url}
+            alt={nama}
+            loading="lazy"
+            onError={() => setFailed(true)}
+            className={`object-cover ${className}`}
+        />
+    );
+}
+
+function StatusBadge({
+    status,
+}) {
+    const info =
+        statusInfo[status] ??
+        statusInfo.tidak_aktif;
+
+    return (
+        <span
+            className={`inline-flex rounded-full border px-2.5 py-1 text-[9px] font-black uppercase tracking-wider ${info.className}`}
+        >
+            {info.label}
+        </span>
+    );
+}
+
 export default function KelolaKendaraan({
     kendaraans = [],
 }) {
-    const { flash = {} } = usePage().props;
+    const { flash = {} } =
+        usePage().props;
 
-    const [cari, setCari] = useState('');
-    const [filterStatus, setFilterStatus] =
-        useState('semua');
+    const [cari, setCari] =
+        useState('');
 
-    const [modalTerbuka, setModalTerbuka] =
-        useState(false);
+    const [
+        filterStatus,
+        setFilterStatus,
+    ] = useState('semua');
 
-    const [kendaraanDipilih, setKendaraanDipilih] =
-        useState(null);
+    const [
+        modalTerbuka,
+        setModalTerbuka,
+    ] = useState(false);
 
-    const [previewFoto, setPreviewFoto] =
-        useState(null);
+    const [
+        kendaraanDipilih,
+        setKendaraanDipilih,
+    ] = useState(null);
+
+    const [
+        previewFoto,
+        setPreviewFoto,
+    ] = useState(null);
 
     const form = useForm(dataAwal);
 
-    const daftarKendaraan = Array.isArray(kendaraans)
+    const daftar = Array.isArray(
+        kendaraans,
+    )
         ? kendaraans
         : [];
 
-    const formatRupiah = (nilai) => {
-        return new Intl.NumberFormat('id-ID', {
-            style: 'currency',
-            currency: 'IDR',
-            maximumFractionDigits: 0,
-        }).format(Number(nilai ?? 0));
-    };
-
-    const alamatFoto = (foto) => {
-        if (!foto) {
-            return null;
-        }
-
-        if (
-            foto.startsWith('http://') ||
-            foto.startsWith('https://') ||
-            foto.startsWith('/') ||
-            foto.startsWith('blob:')
-        ) {
-            return foto;
-        }
-
-        return `/storage/${foto}`;
-    };
-
-    const kendaraanDifilter = useMemo(() => {
-        const kataKunci = cari
+    const hasil = useMemo(() => {
+        const keyword = cari
             .trim()
             .toLowerCase();
 
-        return daftarKendaraan.filter(
-            (kendaraan) => {
-                const cocokPencarian =
-                    !kataKunci ||
-                    kendaraan.nama_kendaraan
-                        ?.toLowerCase()
-                        .includes(kataKunci) ||
-                    kendaraan.merek
-                        ?.toLowerCase()
-                        .includes(kataKunci) ||
-                    kendaraan.plat_nomor
-                        ?.toLowerCase()
-                        .includes(kataKunci);
-
-                const cocokStatus =
-                    filterStatus === 'semua' ||
-                    kendaraan.status ===
-                        filterStatus;
+        return daftar.filter(
+            (item) => {
+                const text = [
+                    item.nama_kendaraan,
+                    item.merek,
+                    item.warna,
+                    item.plat_nomor,
+                ]
+                    .filter(Boolean)
+                    .join(' ')
+                    .toLowerCase();
 
                 return (
-                    cocokPencarian &&
-                    cocokStatus
+                    (
+                        !keyword ||
+                        text.includes(keyword)
+                    ) &&
+                    (
+                        filterStatus ===
+                            'semua' ||
+                        item.status ===
+                            filterStatus
+                    )
                 );
             },
         );
     }, [
         cari,
-        daftarKendaraan,
+        daftar,
         filterStatus,
     ]);
 
-    const ringkasan = useMemo(() => {
-        return {
-            total: daftarKendaraan.length,
+    const ringkasan = useMemo(
+        () => ({
+            total:
+                daftar.length,
 
-            tersedia: daftarKendaraan.filter(
-                (item) =>
-                    item.status === 'tersedia',
-            ).length,
+            tersedia:
+                daftar.filter(
+                    (item) =>
+                        item.status ===
+                        'tersedia',
+                ).length,
 
-            perbaikan: daftarKendaraan.filter(
-                (item) =>
-                    item.status === 'perbaikan',
-            ).length,
+            perbaikan:
+                daftar.filter(
+                    (item) =>
+                        item.status ===
+                        'perbaikan',
+                ).length,
 
-            tidakAktif: daftarKendaraan.filter(
-                (item) =>
-                    item.status ===
-                    'tidak_aktif',
-            ).length,
-        };
-    }, [daftarKendaraan]);
+            tidakAktif:
+                daftar.filter(
+                    (item) =>
+                        item.status ===
+                        'tidak_aktif',
+                ).length,
+        }),
+        [daftar],
+    );
 
-    const bersihkanPreview = () => {
+    const hapusBlobPreview = () => {
         if (
-            previewFoto?.startsWith('blob:')
+            previewFoto?.startsWith(
+                'blob:',
+            )
         ) {
             URL.revokeObjectURL(
                 previewFoto,
@@ -174,11 +322,12 @@ export default function KelolaKendaraan({
     };
 
     const bukaTambah = () => {
-        bersihkanPreview();
+        hapusBlobPreview();
 
         setKendaraanDipilih(null);
 
         form.clearErrors();
+
         form.setData({
             ...dataAwal,
         });
@@ -186,72 +335,75 @@ export default function KelolaKendaraan({
         setModalTerbuka(true);
     };
 
-    const bukaEdit = (kendaraan) => {
-        bersihkanPreview();
+    const bukaEdit = (item) => {
+        hapusBlobPreview();
 
-        setKendaraanDipilih(kendaraan);
+        setKendaraanDipilih(item);
 
         form.clearErrors();
 
         form.setData({
-            _method: 'patch',
+            _method:
+                'patch',
 
             nama_kendaraan:
-                kendaraan.nama_kendaraan ?? '',
+                item.nama_kendaraan ?? '',
 
             merek:
-                kendaraan.merek ?? '',
+                item.merek ?? '',
 
             warna:
-                kendaraan.warna ?? '',
+                item.warna ?? '',
 
             tahun_pembuatan:
                 String(
-                    kendaraan.tahun_pembuatan ??
+                    item.tahun_pembuatan ??
                         '',
                 ),
 
             transmisi:
-                kendaraan.transmisi ??
+                item.transmisi ??
                 'manual',
 
             kapasitas_penumpang:
                 String(
-                    kendaraan.kapasitas_penumpang ??
+                    item.kapasitas_penumpang ??
                         1,
                 ),
 
             harga_per_hari:
                 String(
-                    kendaraan.harga_per_hari ??
+                    item.harga_per_hari ??
                         '',
                 ),
 
             jumlah_unit:
                 String(
-                    kendaraan.jumlah_unit ?? 1,
+                    item.jumlah_unit ??
+                        1,
                 ),
 
             plat_nomor:
-                kendaraan.plat_nomor ?? '',
+                item.plat_nomor ?? '',
 
             status:
-                kendaraan.status ??
+                item.status ??
                 'tersedia',
 
-            foto_kendaraan: null,
+            foto_kendaraan:
+                null,
 
             fasilitas:
-                kendaraan.fasilitas ?? '',
+                item.fasilitas ?? '',
 
             deskripsi_kendaraan:
-                kendaraan.deskripsi_kendaraan ??
+                item.deskripsi_kendaraan ??
                 '',
         });
 
         setPreviewFoto(
-            alamatFoto(
-                kendaraan.foto_kendaraan,
+            fotoUrl(
+                item.foto_kendaraan,
             ),
         );
 
@@ -263,14 +415,52 @@ export default function KelolaKendaraan({
             return;
         }
 
-        bersihkanPreview();
+        hapusBlobPreview();
 
         setModalTerbuka(false);
+
         setKendaraanDipilih(null);
 
         form.reset();
+
         form.clearErrors();
     };
+
+    useEffect(() => {
+        if (!modalTerbuka) {
+            document.body.style.overflow =
+                '';
+
+            return;
+        }
+
+        document.body.style.overflow =
+            'hidden';
+
+        const onKeyDown = (event) => {
+            if (event.key === 'Escape') {
+                tutupModal();
+            }
+        };
+
+        window.addEventListener(
+            'keydown',
+            onKeyDown,
+        );
+
+        return () => {
+            document.body.style.overflow =
+                '';
+
+            window.removeEventListener(
+                'keydown',
+                onKeyDown,
+            );
+        };
+    }, [
+        modalTerbuka,
+        form.processing,
+    ]);
 
     const ubahFoto = (event) => {
         const file =
@@ -278,7 +468,9 @@ export default function KelolaKendaraan({
             null;
 
         if (
-            previewFoto?.startsWith('blob:')
+            previewFoto?.startsWith(
+                'blob:',
+            )
         ) {
             URL.revokeObjectURL(
                 previewFoto,
@@ -292,9 +484,11 @@ export default function KelolaKendaraan({
 
         setPreviewFoto(
             file
-                ? URL.createObjectURL(file)
+                ? URL.createObjectURL(
+                      file,
+                  )
                 : kendaraanDipilih
-                  ? alamatFoto(
+                  ? fotoUrl(
                         kendaraanDipilih
                             .foto_kendaraan,
                     )
@@ -302,34 +496,31 @@ export default function KelolaKendaraan({
         );
     };
 
-    const simpanKendaraan = (event) => {
+    const simpan = (event) => {
         event.preventDefault();
 
-        const routeTujuan = kendaraanDipilih
-            ? route(
-                  'admin.kendaraan.update',
-                  kendaraanDipilih.id,
-              )
-            : route(
-                  'admin.kendaraan.simpan',
-              );
+        const tujuan =
+            kendaraanDipilih
+                ? route(
+                      'admin.kendaraan.update',
+                      kendaraanDipilih.id,
+                  )
+                : route(
+                      'admin.kendaraan.simpan',
+                  );
 
-        form.post(routeTujuan, {
+        form.post(tujuan, {
             forceFormData: true,
             preserveScroll: true,
-
-            onSuccess: () => {
-                tutupModal();
-            },
+            onSuccess: tutupModal,
         });
     };
 
-    const hapusKendaraan = (
-        kendaraan,
-    ) => {
-        const yakin = window.confirm(
-            `Hapus kendaraan "${kendaraan.nama_kendaraan}"?\n\nKendaraan yang memiliki riwayat transaksi akan dinonaktifkan dan tidak dihapus permanen.`,
-        );
+    const hapus = (item) => {
+        const yakin =
+            window.confirm(
+                `Hapus kendaraan "${item.nama_kendaraan}"?\n\nKendaraan yang memiliki riwayat transaksi hanya akan dinonaktifkan.`,
+            );
 
         if (!yakin) {
             return;
@@ -338,7 +529,7 @@ export default function KelolaKendaraan({
         router.delete(
             route(
                 'admin.kendaraan.hapus',
-                kendaraan.id,
+                item.id,
             ),
             {
                 preserveScroll: true,
@@ -346,310 +537,301 @@ export default function KelolaKendaraan({
         );
     };
 
-    const kelasStatus = (status) => {
-        if (status === 'tersedia') {
-            return 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300';
-        }
-
-        if (status === 'perbaikan') {
-            return 'border-amber-500/30 bg-amber-500/10 text-amber-300';
-        }
-
-        return 'border-slate-600 bg-slate-800 text-slate-300';
-    };
-
-    const labelStatus = (status) => {
-        if (status === 'tersedia') {
-            return 'Tersedia';
-        }
-
-        if (status === 'perbaikan') {
-            return 'Perbaikan';
-        }
-
-        return 'Tidak Aktif';
-    };
-
     return (
         <>
             <Head title="Kelola Kendaraan" />
 
-            <main className="mx-auto max-w-7xl px-5 py-10 sm:px-8">
-                <section className="rounded-3xl border border-slate-800 bg-[#10192B] p-7 shadow-2xl sm:p-9">
-                    <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-                        <div>
-                            <p className="text-xs font-bold uppercase tracking-[0.24em] text-[#06B6D4]">
-                                Manajemen Armada
-                            </p>
+            <main className="mx-auto w-full max-w-[1600px] px-4 py-4 sm:px-5">
+                <section className="flex flex-col gap-3 rounded-xl border border-slate-800 bg-[#10192B] p-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                        <p className="text-[9px] font-black uppercase tracking-[0.2em] text-[#06B6D4]">
+                            Manajemen Armada
+                        </p>
 
-                            <h1 className="mt-3 text-3xl font-extrabold">
-                                Kelola Kendaraan
-                            </h1>
+                        <h1 className="mt-1 text-2xl font-black text-white">
+                            Kelola Kendaraan
+                        </h1>
 
-                            <p className="mt-3 max-w-2xl text-sm leading-7 text-[#94A3B8]">
-                                Tambahkan kendaraan,
-                                perbarui informasi armada,
-                                atur jumlah unit, dan
-                                tentukan status
-                                operasionalnya.
-                            </p>
-                        </div>
-
-                        <button
-                            type="button"
-                            onClick={bukaTambah}
-                            className="inline-flex items-center justify-center rounded-xl bg-[#06B6D4] px-6 py-3.5 font-bold text-[#0B1120] transition hover:bg-[#0891B2]"
-                        >
-                            + Tambah Kendaraan
-                        </button>
+                        <p className="mt-1 text-xs text-slate-500">
+                            Tambah, ubah, dan atur
+                            status armada rental.
+                        </p>
                     </div>
+
+                    <button
+                        type="button"
+                        onClick={bukaTambah}
+                        className="inline-flex h-10 items-center justify-center rounded-lg bg-[#06B6D4] px-4 text-sm font-black text-[#0B1120] transition hover:bg-[#22D3EE]"
+                    >
+                        + Tambah Kendaraan
+                    </button>
                 </section>
 
                 {(flash.success ||
-                    flash.error ||
-                    flash.warning) && (
-                    <section className="mt-6 space-y-3">
+                    flash.warning ||
+                    flash.error) && (
+                    <section className="mt-3 space-y-2">
                         {flash.success && (
-                            <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-5 py-4 text-sm font-semibold text-emerald-300">
+                            <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5 text-xs font-semibold text-emerald-300">
                                 {flash.success}
                             </div>
                         )}
 
                         {flash.warning && (
-                            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-5 py-4 text-sm font-semibold text-amber-300">
+                            <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs font-semibold text-amber-300">
                                 {flash.warning}
                             </div>
                         )}
 
                         {flash.error && (
-                            <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-5 py-4 text-sm font-semibold text-rose-300">
+                            <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2.5 text-xs font-semibold text-rose-300">
                                 {flash.error}
                             </div>
                         )}
                     </section>
                 )}
 
-                <section className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                    {[
-                        {
-                            label: 'Total Kendaraan',
-                            nilai: ringkasan.total,
-                        },
-                        {
-                            label: 'Tersedia',
-                            nilai: ringkasan.tersedia,
-                        },
-                        {
-                            label: 'Perbaikan',
-                            nilai: ringkasan.perbaikan,
-                        },
-                        {
-                            label: 'Tidak Aktif',
-                            nilai: ringkasan.tidakAktif,
-                        },
-                    ].map((item) => (
-                        <article
-                            key={item.label}
-                            className="rounded-2xl border border-slate-800 bg-[#1E293B] p-5 shadow-xl"
-                        >
-                            <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#94A3B8]">
-                                {item.label}
-                            </p>
+                <section className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-4">
+                    <Stat
+                        label="Total Armada"
+                        value={
+                            ringkasan.total
+                        }
+                    />
 
-                            <p className="mt-3 text-3xl font-extrabold text-[#F8FAFC]">
-                                {item.nilai}
-                            </p>
-                        </article>
-                    ))}
+                    <Stat
+                        label="Tersedia"
+                        value={
+                            ringkasan.tersedia
+                        }
+                        valueClass="text-emerald-300"
+                    />
+
+                    <Stat
+                        label="Perbaikan"
+                        value={
+                            ringkasan.perbaikan
+                        }
+                        valueClass="text-amber-300"
+                    />
+
+                    <Stat
+                        label="Tidak Aktif"
+                        value={
+                            ringkasan.tidakAktif
+                        }
+                        valueClass="text-slate-400"
+                    />
                 </section>
 
-                <section className="mt-7 rounded-2xl border border-slate-800 bg-[#1E293B] p-5 shadow-xl">
-                    <div className="grid gap-4 md:grid-cols-[1fr_220px]">
-                        <input
-                            type="search"
-                            value={cari}
-                            onChange={(event) =>
-                                setCari(
-                                    event.target.value,
-                                )
-                            }
-                            placeholder="Cari nama, merek, atau plat nomor"
-                            className={kelasInput}
-                        />
+                <section className="mt-3 flex flex-col gap-2 rounded-xl border border-slate-800 bg-[#10192B] p-3 md:flex-row">
+                    <input
+                        type="search"
+                        value={cari}
+                        onChange={(event) =>
+                            setCari(
+                                event.target
+                                    .value,
+                            )
+                        }
+                        placeholder="Cari nama, merek, warna, atau plat nomor"
+                        className={`${inputClass} flex-1`}
+                    />
 
-                        <select
-                            value={filterStatus}
-                            onChange={(event) =>
-                                setFilterStatus(
-                                    event.target.value,
-                                )
-                            }
-                            className={kelasInput}
-                        >
-                            <option value="semua">
-                                Semua status
-                            </option>
+                    <select
+                        value={filterStatus}
+                        onChange={(event) =>
+                            setFilterStatus(
+                                event.target
+                                    .value,
+                            )
+                        }
+                        className={`${inputClass} md:w-52`}
+                    >
+                        <option value="semua">
+                            Semua status
+                        </option>
 
-                            <option value="tersedia">
-                                Tersedia
-                            </option>
+                        <option value="tersedia">
+                            Tersedia
+                        </option>
 
-                            <option value="perbaikan">
-                                Perbaikan
-                            </option>
+                        <option value="perbaikan">
+                            Perbaikan
+                        </option>
 
-                            <option value="tidak_aktif">
-                                Tidak aktif
-                            </option>
-                        </select>
+                        <option value="tidak_aktif">
+                            Tidak aktif
+                        </option>
+                    </select>
+
+                    <div className="flex h-10 items-center rounded-lg border border-slate-800 bg-[#0B1120] px-3 text-xs font-bold text-slate-500">
+                        {hasil.length} data
                     </div>
                 </section>
 
-                <section className="mt-7">
-                    {kendaraanDifilter.length ===
-                    0 ? (
-                        <div className="rounded-2xl border border-dashed border-slate-700 bg-[#1E293B] px-6 py-16 text-center">
-                            <p className="text-lg font-bold">
-                                Data kendaraan tidak
+                <section className="mt-3 overflow-hidden rounded-xl border border-slate-800 bg-[#10192B]">
+                    {hasil.length === 0 ? (
+                        <div className="flex min-h-64 flex-col items-center justify-center px-5 py-10 text-center">
+                            <span className="text-4xl opacity-40">
+                                🚘
+                            </span>
+
+                            <p className="mt-3 text-sm font-black text-white">
+                                Kendaraan tidak
                                 ditemukan
                             </p>
 
-                            <p className="mt-2 text-sm text-[#94A3B8]">
-                                Ubah kata pencarian atau
-                                tambahkan kendaraan baru.
+                            <p className="mt-1 text-xs text-slate-500">
+                                Ubah pencarian atau
+                                tambahkan armada baru.
                             </p>
                         </div>
                     ) : (
-                        <div className="grid gap-6 lg:grid-cols-2">
-                            {kendaraanDifilter.map(
-                                (kendaraan) => {
-                                    const foto =
-                                        alamatFoto(
-                                            kendaraan.foto_kendaraan,
-                                        );
+                        <div className="overflow-x-auto">
+                            <table className="w-full min-w-[1060px] border-collapse text-left">
+                                <thead className="border-b border-slate-800 bg-[#0B1120] text-[9px] font-black uppercase tracking-[0.12em] text-slate-500">
+                                    <tr>
+                                        <th className="px-3 py-2.5">
+                                            Kendaraan
+                                        </th>
 
-                                    return (
-                                        <article
-                                            key={
-                                                kendaraan.id
-                                            }
-                                            className="overflow-hidden rounded-2xl border border-slate-800 bg-[#1E293B] shadow-xl"
-                                        >
-                                            <div className="grid sm:grid-cols-[210px_1fr]">
-                                                <div className="flex min-h-52 items-center justify-center bg-[#0B1120]">
-                                                    {foto ? (
-                                                        <img
-                                                            src={
-                                                                foto
+                                        <th className="px-3 py-2.5">
+                                            Plat/Tahun
+                                        </th>
+
+                                        <th className="px-3 py-2.5">
+                                            Spesifikasi
+                                        </th>
+
+                                        <th className="px-3 py-2.5">
+                                            Unit
+                                        </th>
+
+                                        <th className="px-3 py-2.5">
+                                            Harga/Hari
+                                        </th>
+
+                                        <th className="px-3 py-2.5">
+                                            Status
+                                        </th>
+
+                                        <th className="px-3 py-2.5 text-right">
+                                            Aksi
+                                        </th>
+                                    </tr>
+                                </thead>
+
+                                <tbody className="divide-y divide-slate-800">
+                                    {hasil.map(
+                                        (item) => (
+                                            <tr
+                                                key={
+                                                    item.id
+                                                }
+                                                className="transition hover:bg-[#1E293B]/50"
+                                            >
+                                                <td className="px-3 py-2.5">
+                                                    <div className="flex items-center gap-3">
+                                                        <VehiclePhoto
+                                                            foto={
+                                                                item.foto_kendaraan
                                                             }
-                                                            alt={
-                                                                kendaraan.nama_kendaraan
+                                                            nama={
+                                                                item.nama_kendaraan
                                                             }
-                                                            className="h-full min-h-52 w-full object-cover"
+                                                            className="h-12 w-16 shrink-0 rounded-lg border border-slate-800"
                                                         />
-                                                    ) : (
-                                                        <div className="px-5 text-center text-sm text-[#64748B]">
-                                                            Foto
-                                                            kendaraan
-                                                            belum
-                                                            tersedia
-                                                        </div>
-                                                    )}
-                                                </div>
 
-                                                <div className="p-6">
-                                                    <div className="flex flex-wrap items-start justify-between gap-3">
-                                                        <div>
-                                                            <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#06B6D4]">
+                                                        <div className="min-w-0">
+                                                            <p className="max-w-56 truncate text-sm font-black text-white">
                                                                 {
-                                                                    kendaraan.merek
+                                                                    item.nama_kendaraan
                                                                 }
                                                             </p>
 
-                                                            <h2 className="mt-2 text-xl font-extrabold">
+                                                            <p className="mt-0.5 max-w-56 truncate text-[11px] text-slate-500">
                                                                 {
-                                                                    kendaraan.nama_kendaraan
-                                                                }
-                                                            </h2>
-
-                                                            <p className="mt-1 text-sm text-[#94A3B8]">
-                                                                {
-                                                                    kendaraan.plat_nomor
-                                                                }
-                                                            </p>
-                                                        </div>
-
-                                                        <span
-                                                            className={`rounded-full border px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider ${kelasStatus(
-                                                                kendaraan.status,
-                                                            )}`}
-                                                        >
-                                                            {labelStatus(
-                                                                kendaraan.status,
-                                                            )}
-                                                        </span>
-                                                    </div>
-
-                                                    <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
-                                                        <div className="rounded-xl bg-[#0B1120] p-3">
-                                                            <p className="text-xs text-[#64748B]">
-                                                                Harga/Hari
-                                                            </p>
-
-                                                            <p className="mt-1 font-bold text-[#F8FAFC]">
-                                                                {formatRupiah(
-                                                                    kendaraan.harga_per_hari,
-                                                                )}
-                                                            </p>
-                                                        </div>
-
-                                                        <div className="rounded-xl bg-[#0B1120] p-3">
-                                                            <p className="text-xs text-[#64748B]">
-                                                                Jumlah Unit
-                                                            </p>
-
-                                                            <p className="mt-1 font-bold">
-                                                                {
-                                                                    kendaraan.jumlah_unit
+                                                                    item.merek
                                                                 }{' '}
-                                                                unit
-                                                            </p>
-                                                        </div>
-
-                                                        <div className="rounded-xl bg-[#0B1120] p-3">
-                                                            <p className="text-xs text-[#64748B]">
-                                                                Transmisi
-                                                            </p>
-
-                                                            <p className="mt-1 font-bold capitalize">
+                                                                ·{' '}
                                                                 {
-                                                                    kendaraan.transmisi
+                                                                    item.warna
                                                                 }
                                                             </p>
                                                         </div>
-
-                                                        <div className="rounded-xl bg-[#0B1120] p-3">
-                                                            <p className="text-xs text-[#64748B]">
-                                                                Riwayat
-                                                            </p>
-
-                                                            <p className="mt-1 font-bold">
-                                                                {kendaraan.sewas_count ??
-                                                                    0}{' '}
-                                                                transaksi
-                                                            </p>
-                                                        </div>
                                                     </div>
+                                                </td>
 
-                                                    <div className="mt-5 flex gap-3">
+                                                <td className="px-3 py-2.5">
+                                                    <p className="text-xs font-black text-white">
+                                                        {
+                                                            item.plat_nomor
+                                                        }
+                                                    </p>
+
+                                                    <p className="mt-0.5 text-[10px] text-slate-500">
+                                                        {
+                                                            item.tahun_pembuatan
+                                                        }
+                                                    </p>
+                                                </td>
+
+                                                <td className="px-3 py-2.5">
+                                                    <p className="text-xs font-bold capitalize text-slate-300">
+                                                        {
+                                                            item.transmisi
+                                                        }
+                                                    </p>
+
+                                                    <p className="mt-0.5 text-[10px] text-slate-500">
+                                                        {
+                                                            item.kapasitas_penumpang
+                                                        }{' '}
+                                                        penumpang
+                                                    </p>
+                                                </td>
+
+                                                <td className="px-3 py-2.5">
+                                                    <p className="text-sm font-black text-white">
+                                                        {
+                                                            item.jumlah_unit
+                                                        }
+                                                    </p>
+
+                                                    <p className="mt-0.5 text-[10px] text-slate-500">
+                                                        {Number(
+                                                            item.sewas_count ??
+                                                                0,
+                                                        )}{' '}
+                                                        riwayat
+                                                    </p>
+                                                </td>
+
+                                                <td className="px-3 py-2.5 text-xs font-black text-[#06B6D4]">
+                                                    {formatRupiah(
+                                                        item.harga_per_hari,
+                                                    )}
+                                                </td>
+
+                                                <td className="px-3 py-2.5">
+                                                    <StatusBadge
+                                                        status={
+                                                            item.status
+                                                        }
+                                                    />
+                                                </td>
+
+                                                <td className="px-3 py-2.5">
+                                                    <div className="flex justify-end gap-1.5">
                                                         <button
                                                             type="button"
                                                             onClick={() =>
                                                                 bukaEdit(
-                                                                    kendaraan,
+                                                                    item,
                                                                 )
                                                             }
-                                                            className="flex-1 rounded-xl border border-[#06B6D4]/50 px-4 py-2.5 text-sm font-bold text-[#06B6D4] transition hover:bg-[#06B6D4]/10"
+                                                            className="h-8 rounded-lg border border-slate-700 px-3 text-[11px] font-bold text-slate-300 transition hover:border-[#06B6D4] hover:text-[#06B6D4]"
                                                         >
                                                             Edit
                                                         </button>
@@ -657,36 +839,48 @@ export default function KelolaKendaraan({
                                                         <button
                                                             type="button"
                                                             onClick={() =>
-                                                                hapusKendaraan(
-                                                                    kendaraan,
+                                                                hapus(
+                                                                    item,
                                                                 )
                                                             }
-                                                            className="flex-1 rounded-xl border border-rose-500/40 px-4 py-2.5 text-sm font-bold text-rose-400 transition hover:bg-rose-500/10"
+                                                            className="h-8 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 text-[11px] font-bold text-rose-300 transition hover:bg-rose-500/20"
                                                         >
                                                             Hapus
                                                         </button>
                                                     </div>
-                                                </div>
-                                            </div>
-                                        </article>
-                                    );
-                                },
-                            )}
+                                                </td>
+                                            </tr>
+                                        ),
+                                    )}
+                                </tbody>
+                            </table>
                         </div>
                     )}
                 </section>
             </main>
 
             {modalTerbuka && (
-                <div className="fixed inset-0 z-[100] overflow-y-auto bg-black/75 px-4 py-8 backdrop-blur-sm">
-                    <div className="mx-auto w-full max-w-4xl rounded-3xl border border-slate-700 bg-[#1E293B] shadow-2xl">
-                        <div className="flex items-start justify-between border-b border-slate-700 px-6 py-5 sm:px-8">
+                <div
+                    className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-2 backdrop-blur-sm sm:p-4"
+                    onMouseDown={(
+                        event,
+                    ) => {
+                        if (
+                            event.target ===
+                            event.currentTarget
+                        ) {
+                            tutupModal();
+                        }
+                    }}
+                >
+                    <div className="flex max-h-[94vh] w-full max-w-6xl flex-col overflow-hidden rounded-xl border border-slate-700 bg-[#10192B] shadow-2xl">
+                        <header className="flex shrink-0 items-center justify-between border-b border-slate-700 px-4 py-3">
                             <div>
-                                <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#06B6D4]">
+                                <p className="text-[9px] font-black uppercase tracking-[0.18em] text-[#06B6D4]">
                                     Manajemen Armada
                                 </p>
 
-                                <h2 className="mt-2 text-2xl font-extrabold">
+                                <h2 className="mt-0.5 text-lg font-black text-white">
                                     {kendaraanDipilih
                                         ? 'Edit Kendaraan'
                                         : 'Tambah Kendaraan'}
@@ -695,530 +889,571 @@ export default function KelolaKendaraan({
 
                             <button
                                 type="button"
-                                onClick={tutupModal}
+                                onClick={
+                                    tutupModal
+                                }
                                 disabled={
                                     form.processing
                                 }
-                                className="rounded-xl border border-slate-600 px-3 py-2 text-sm font-bold text-[#94A3B8] hover:text-white"
+                                className="h-9 rounded-lg border border-slate-700 px-3 text-xs font-bold text-slate-400 hover:text-white disabled:opacity-50"
                             >
                                 Tutup
                             </button>
-                        </div>
+                        </header>
 
                         <form
-                            onSubmit={
-                                simpanKendaraan
-                            }
-                            className="p-6 sm:p-8"
+                            onSubmit={simpan}
+                            className="flex min-h-0 flex-1 flex-col"
                         >
-                            <div className="grid gap-5 md:grid-cols-2">
-                                <div>
-                                    <LabelInput wajib>
-                                        Nama Kendaraan
-                                    </LabelInput>
-
-                                    <input
-                                        type="text"
-                                        value={
-                                            form.data
+                            <div className="min-h-0 flex-1 overflow-y-auto p-4">
+                                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                                    <Field
+                                        id="nama_kendaraan"
+                                        label="Nama Kendaraan"
+                                        required
+                                        error={
+                                            form
+                                                .errors
                                                 .nama_kendaraan
                                         }
-                                        onChange={(
-                                            event,
-                                        ) =>
-                                            form.setData(
-                                                'nama_kendaraan',
-                                                event
-                                                    .target
-                                                    .value,
-                                            )
-                                        }
-                                        className={
-                                            kelasInput
-                                        }
+                                        className="sm:col-span-2"
+                                    >
+                                        <input
+                                            id="nama_kendaraan"
+                                            value={
+                                                form
+                                                    .data
+                                                    .nama_kendaraan
+                                            }
+                                            onChange={(
+                                                event,
+                                            ) =>
+                                                form.setData(
+                                                    'nama_kendaraan',
+                                                    event
+                                                        .target
+                                                        .value,
+                                                )
+                                            }
+                                            className={
+                                                inputClass
+                                            }
+                                            required
+                                        />
+                                    </Field>
+
+                                    <Field
+                                        id="merek"
+                                        label="Merek"
                                         required
-                                    />
-
-                                    <PesanError
-                                        message={
-                                            form.errors
-                                                .nama_kendaraan
-                                        }
-                                    />
-                                </div>
-
-                                <div>
-                                    <LabelInput wajib>
-                                        Merek
-                                    </LabelInput>
-
-                                    <input
-                                        type="text"
-                                        value={
-                                            form.data
+                                        error={
+                                            form
+                                                .errors
                                                 .merek
                                         }
-                                        onChange={(
-                                            event,
-                                        ) =>
-                                            form.setData(
-                                                'merek',
-                                                event
-                                                    .target
-                                                    .value,
-                                            )
-                                        }
-                                        className={
-                                            kelasInput
-                                        }
+                                    >
+                                        <input
+                                            id="merek"
+                                            value={
+                                                form
+                                                    .data
+                                                    .merek
+                                            }
+                                            onChange={(
+                                                event,
+                                            ) =>
+                                                form.setData(
+                                                    'merek',
+                                                    event
+                                                        .target
+                                                        .value,
+                                                )
+                                            }
+                                            className={
+                                                inputClass
+                                            }
+                                            required
+                                        />
+                                    </Field>
+
+                                    <Field
+                                        id="warna"
+                                        label="Warna"
                                         required
-                                    />
-
-                                    <PesanError
-                                        message={
-                                            form.errors
-                                                .merek
-                                        }
-                                    />
-                                </div>
-
-                                <div>
-                                    <LabelInput wajib>
-                                        Warna
-                                    </LabelInput>
-
-                                    <input
-                                        type="text"
-                                        value={
-                                            form.data
+                                        error={
+                                            form
+                                                .errors
                                                 .warna
                                         }
-                                        onChange={(
-                                            event,
-                                        ) =>
-                                            form.setData(
-                                                'warna',
-                                                event
-                                                    .target
-                                                    .value,
-                                            )
-                                        }
-                                        className={
-                                            kelasInput
-                                        }
+                                    >
+                                        <input
+                                            id="warna"
+                                            value={
+                                                form
+                                                    .data
+                                                    .warna
+                                            }
+                                            onChange={(
+                                                event,
+                                            ) =>
+                                                form.setData(
+                                                    'warna',
+                                                    event
+                                                        .target
+                                                        .value,
+                                                )
+                                            }
+                                            className={
+                                                inputClass
+                                            }
+                                            required
+                                        />
+                                    </Field>
+
+                                    <Field
+                                        id="tahun_pembuatan"
+                                        label="Tahun"
                                         required
-                                    />
-
-                                    <PesanError
-                                        message={
-                                            form.errors
-                                                .warna
-                                        }
-                                    />
-                                </div>
-
-                                <div>
-                                    <LabelInput wajib>
-                                        Plat Nomor
-                                    </LabelInput>
-
-                                    <input
-                                        type="text"
-                                        value={
-                                            form.data
-                                                .plat_nomor
-                                        }
-                                        onChange={(
-                                            event,
-                                        ) =>
-                                            form.setData(
-                                                'plat_nomor',
-                                                event
-                                                    .target
-                                                    .value,
-                                            )
-                                        }
-                                        className={`${kelasInput} uppercase`}
-                                        placeholder="KB 1234 AA"
-                                        required
-                                    />
-
-                                    <PesanError
-                                        message={
-                                            form.errors
-                                                .plat_nomor
-                                        }
-                                    />
-                                </div>
-
-                                <div>
-                                    <LabelInput wajib>
-                                        Tahun Pembuatan
-                                    </LabelInput>
-
-                                    <input
-                                        type="number"
-                                        value={
-                                            form.data
+                                        error={
+                                            form
+                                                .errors
                                                 .tahun_pembuatan
                                         }
-                                        onChange={(
-                                            event,
-                                        ) =>
-                                            form.setData(
-                                                'tahun_pembuatan',
-                                                event
-                                                    .target
-                                                    .value,
-                                            )
-                                        }
-                                        min="1900"
-                                        max={
-                                            new Date()
-                                                .getFullYear() +
-                                            1
-                                        }
-                                        className={
-                                            kelasInput
-                                        }
+                                    >
+                                        <input
+                                            id="tahun_pembuatan"
+                                            type="number"
+                                            min="1900"
+                                            max={
+                                                new Date()
+                                                    .getFullYear() +
+                                                1
+                                            }
+                                            value={
+                                                form
+                                                    .data
+                                                    .tahun_pembuatan
+                                            }
+                                            onChange={(
+                                                event,
+                                            ) =>
+                                                form.setData(
+                                                    'tahun_pembuatan',
+                                                    event
+                                                        .target
+                                                        .value,
+                                                )
+                                            }
+                                            className={
+                                                inputClass
+                                            }
+                                            required
+                                        />
+                                    </Field>
+
+                                    <Field
+                                        id="transmisi"
+                                        label="Transmisi"
                                         required
-                                    />
-
-                                    <PesanError
-                                        message={
-                                            form.errors
-                                                .tahun_pembuatan
-                                        }
-                                    />
-                                </div>
-
-                                <div>
-                                    <LabelInput wajib>
-                                        Transmisi
-                                    </LabelInput>
-
-                                    <select
-                                        value={
-                                            form.data
+                                        error={
+                                            form
+                                                .errors
                                                 .transmisi
                                         }
-                                        onChange={(
-                                            event,
-                                        ) =>
-                                            form.setData(
-                                                'transmisi',
-                                                event
-                                                    .target
-                                                    .value,
-                                            )
-                                        }
-                                        className={
-                                            kelasInput
-                                        }
-                                        required
                                     >
-                                        <option value="manual">
-                                            Manual
-                                        </option>
+                                        <select
+                                            id="transmisi"
+                                            value={
+                                                form
+                                                    .data
+                                                    .transmisi
+                                            }
+                                            onChange={(
+                                                event,
+                                            ) =>
+                                                form.setData(
+                                                    'transmisi',
+                                                    event
+                                                        .target
+                                                        .value,
+                                                )
+                                            }
+                                            className={
+                                                inputClass
+                                            }
+                                            required
+                                        >
+                                            <option value="manual">
+                                                Manual
+                                            </option>
 
-                                        <option value="otomatis">
-                                            Otomatis
-                                        </option>
-                                    </select>
+                                            <option value="otomatis">
+                                                Otomatis
+                                            </option>
+                                        </select>
+                                    </Field>
 
-                                    <PesanError
-                                        message={
-                                            form.errors
-                                                .transmisi
-                                        }
-                                    />
-                                </div>
-
-                                <div>
-                                    <LabelInput wajib>
-                                        Kapasitas Penumpang
-                                    </LabelInput>
-
-                                    <input
-                                        type="number"
-                                        value={
-                                            form.data
+                                    <Field
+                                        id="kapasitas_penumpang"
+                                        label="Penumpang"
+                                        required
+                                        error={
+                                            form
+                                                .errors
                                                 .kapasitas_penumpang
                                         }
-                                        onChange={(
-                                            event,
-                                        ) =>
-                                            form.setData(
-                                                'kapasitas_penumpang',
-                                                event
-                                                    .target
-                                                    .value,
-                                            )
-                                        }
-                                        min="1"
-                                        className={
-                                            kelasInput
-                                        }
-                                        required
-                                    />
-
-                                    <PesanError
-                                        message={
-                                            form.errors
-                                                .kapasitas_penumpang
-                                        }
-                                    />
-                                </div>
-
-                                <div>
-                                    <LabelInput wajib>
-                                        Jumlah Unit
-                                    </LabelInput>
-
-                                    <input
-                                        type="number"
-                                        value={
-                                            form.data
-                                                .jumlah_unit
-                                        }
-                                        onChange={(
-                                            event,
-                                        ) =>
-                                            form.setData(
-                                                'jumlah_unit',
-                                                event
-                                                    .target
-                                                    .value,
-                                            )
-                                        }
-                                        min="1"
-                                        className={
-                                            kelasInput
-                                        }
-                                        required
-                                    />
-
-                                    <PesanError
-                                        message={
-                                            form.errors
-                                                .jumlah_unit
-                                        }
-                                    />
-                                </div>
-
-                                <div>
-                                    <LabelInput wajib>
-                                        Harga per Hari
-                                    </LabelInput>
-
-                                    <input
-                                        type="number"
-                                        value={
-                                            form.data
-                                                .harga_per_hari
-                                        }
-                                        onChange={(
-                                            event,
-                                        ) =>
-                                            form.setData(
-                                                'harga_per_hari',
-                                                event
-                                                    .target
-                                                    .value,
-                                            )
-                                        }
-                                        min="1"
-                                        className={
-                                            kelasInput
-                                        }
-                                        required
-                                    />
-
-                                    <PesanError
-                                        message={
-                                            form.errors
-                                                .harga_per_hari
-                                        }
-                                    />
-                                </div>
-
-                                <div>
-                                    <LabelInput wajib>
-                                        Status Operasional
-                                    </LabelInput>
-
-                                    <select
-                                        value={
-                                            form.data
-                                                .status
-                                        }
-                                        onChange={(
-                                            event,
-                                        ) =>
-                                            form.setData(
-                                                'status',
-                                                event
-                                                    .target
-                                                    .value,
-                                            )
-                                        }
-                                        className={
-                                            kelasInput
-                                        }
-                                        required
                                     >
-                                        <option value="tersedia">
-                                            Tersedia
-                                        </option>
+                                        <input
+                                            id="kapasitas_penumpang"
+                                            type="number"
+                                            min="1"
+                                            max="100"
+                                            value={
+                                                form
+                                                    .data
+                                                    .kapasitas_penumpang
+                                            }
+                                            onChange={(
+                                                event,
+                                            ) =>
+                                                form.setData(
+                                                    'kapasitas_penumpang',
+                                                    event
+                                                        .target
+                                                        .value,
+                                                )
+                                            }
+                                            className={
+                                                inputClass
+                                            }
+                                            required
+                                        />
+                                    </Field>
 
-                                        <option value="perbaikan">
-                                            Perbaikan
-                                        </option>
+                                    <Field
+                                        id="jumlah_unit"
+                                        label="Jumlah Unit"
+                                        required
+                                        error={
+                                            form
+                                                .errors
+                                                .jumlah_unit
+                                        }
+                                    >
+                                        <input
+                                            id="jumlah_unit"
+                                            type="number"
+                                            min="1"
+                                            max="1000"
+                                            value={
+                                                form
+                                                    .data
+                                                    .jumlah_unit
+                                            }
+                                            onChange={(
+                                                event,
+                                            ) =>
+                                                form.setData(
+                                                    'jumlah_unit',
+                                                    event
+                                                        .target
+                                                        .value,
+                                                )
+                                            }
+                                            className={
+                                                inputClass
+                                            }
+                                            required
+                                        />
+                                    </Field>
 
-                                        <option value="tidak_aktif">
-                                            Tidak Aktif
-                                        </option>
-                                    </select>
+                                    <Field
+                                        id="harga_per_hari"
+                                        label="Harga Per Hari"
+                                        required
+                                        error={
+                                            form
+                                                .errors
+                                                .harga_per_hari
+                                        }
+                                        className="sm:col-span-2"
+                                    >
+                                        <input
+                                            id="harga_per_hari"
+                                            type="number"
+                                            min="1"
+                                            value={
+                                                form
+                                                    .data
+                                                    .harga_per_hari
+                                            }
+                                            onChange={(
+                                                event,
+                                            ) =>
+                                                form.setData(
+                                                    'harga_per_hari',
+                                                    event
+                                                        .target
+                                                        .value,
+                                                )
+                                            }
+                                            className={
+                                                inputClass
+                                            }
+                                            placeholder="Contoh: 350000"
+                                            required
+                                        />
+                                    </Field>
 
-                                    <PesanError
-                                        message={
-                                            form.errors
+                                    <Field
+                                        id="plat_nomor"
+                                        label="Plat Nomor"
+                                        required
+                                        error={
+                                            form
+                                                .errors
+                                                .plat_nomor
+                                        }
+                                    >
+                                        <input
+                                            id="plat_nomor"
+                                            value={
+                                                form
+                                                    .data
+                                                    .plat_nomor
+                                            }
+                                            onChange={(
+                                                event,
+                                            ) =>
+                                                form.setData(
+                                                    'plat_nomor',
+                                                    event
+                                                        .target
+                                                        .value
+                                                        .toUpperCase(),
+                                                )
+                                            }
+                                            className={
+                                                inputClass
+                                            }
+                                            placeholder="KB 1234 AA"
+                                            required
+                                        />
+                                    </Field>
+
+                                    <Field
+                                        id="status"
+                                        label="Status Operasional"
+                                        required
+                                        error={
+                                            form
+                                                .errors
                                                 .status
                                         }
-                                    />
+                                    >
+                                        <select
+                                            id="status"
+                                            value={
+                                                form
+                                                    .data
+                                                    .status
+                                            }
+                                            onChange={(
+                                                event,
+                                            ) =>
+                                                form.setData(
+                                                    'status',
+                                                    event
+                                                        .target
+                                                        .value,
+                                                )
+                                            }
+                                            className={
+                                                inputClass
+                                            }
+                                            required
+                                        >
+                                            <option value="tersedia">
+                                                Tersedia
+                                            </option>
+
+                                            <option value="perbaikan">
+                                                Perbaikan
+                                            </option>
+
+                                            <option value="tidak_aktif">
+                                                Tidak Aktif
+                                            </option>
+                                        </select>
+                                    </Field>
                                 </div>
 
-                                <div className="md:col-span-2">
-                                    <LabelInput>
-                                        Foto Kendaraan
-                                    </LabelInput>
+                                <div className="mt-3 grid gap-3 xl:grid-cols-[240px_minmax(0,1fr)]">
+                                    <section className="rounded-xl border border-slate-700 bg-[#0B1120] p-3">
+                                        <Label htmlFor="foto_kendaraan">
+                                            Foto Kendaraan
+                                        </Label>
 
-                                    <input
-                                        type="file"
-                                        accept="image/jpeg,image/png,image/webp"
-                                        onChange={
-                                            ubahFoto
-                                        }
-                                        className="block w-full rounded-xl border border-dashed border-slate-600 bg-[#0B1120] px-4 py-4 text-sm text-[#94A3B8] file:mr-4 file:rounded-lg file:border-0 file:bg-[#06B6D4] file:px-4 file:py-2 file:font-bold file:text-[#0B1120]"
-                                    />
-
-                                    <PesanError
-                                        message={
-                                            form.errors
-                                                .foto_kendaraan
-                                        }
-                                    />
-
-                                    {previewFoto && (
-                                        <div className="mt-4 h-56 overflow-hidden rounded-xl border border-slate-700 bg-[#0B1120]">
-                                            <img
-                                                src={
-                                                    previewFoto
-                                                }
-                                                alt="Pratinjau kendaraan"
-                                                className="h-full w-full object-cover"
-                                            />
+                                        <div className="h-32 overflow-hidden rounded-lg border border-slate-800 bg-[#10192B]">
+                                            {previewFoto ? (
+                                                <img
+                                                    src={
+                                                        previewFoto
+                                                    }
+                                                    alt="Pratinjau kendaraan"
+                                                    className="h-full w-full object-cover"
+                                                />
+                                            ) : (
+                                                <div className="flex h-full items-center justify-center text-3xl opacity-40">
+                                                    📷
+                                                </div>
+                                            )}
                                         </div>
-                                    )}
-                                </div>
 
-                                <div className="md:col-span-2">
-                                    <LabelInput>
-                                        Fasilitas
-                                    </LabelInput>
+                                        <label
+                                            htmlFor="foto_kendaraan"
+                                            className="mt-2 flex h-9 cursor-pointer items-center justify-center rounded-lg border border-dashed border-slate-600 px-3 text-[11px] font-bold text-slate-300 hover:border-[#06B6D4] hover:text-[#06B6D4]"
+                                        >
+                                            {form
+                                                .data
+                                                .foto_kendaraan
+                                                ?.name ??
+                                                (kendaraanDipilih
+                                                    ? 'Ganti foto'
+                                                    : 'Pilih foto')}
+                                        </label>
 
-                                    <textarea
-                                        value={
-                                            form.data
-                                                .fasilitas
-                                        }
-                                        onChange={(
-                                            event,
-                                        ) =>
-                                            form.setData(
-                                                'fasilitas',
-                                                event
-                                                    .target
-                                                    .value,
-                                            )
-                                        }
-                                        rows="3"
-                                        className={
-                                            kelasInput
-                                        }
-                                        placeholder="AC, Bluetooth, Airbag, Charger USB"
-                                    />
+                                        <input
+                                            id="foto_kendaraan"
+                                            type="file"
+                                            accept="image/jpeg,image/png,image/webp"
+                                            onChange={
+                                                ubahFoto
+                                            }
+                                            className="sr-only"
+                                        />
 
-                                    <PesanError
-                                        message={
-                                            form.errors
-                                                .fasilitas
-                                        }
-                                    />
-                                </div>
+                                        <p className="mt-1 text-[9px] text-slate-600">
+                                            JPG, PNG, atau
+                                            WebP. Maks. 3 MB.
+                                        </p>
 
-                                <div className="md:col-span-2">
-                                    <LabelInput>
-                                        Deskripsi Kendaraan
-                                    </LabelInput>
+                                        <ErrorText
+                                            message={
+                                                form
+                                                    .errors
+                                                    .foto_kendaraan
+                                            }
+                                        />
+                                    </section>
 
-                                    <textarea
-                                        value={
-                                            form.data
-                                                .deskripsi_kendaraan
-                                        }
-                                        onChange={(
-                                            event,
-                                        ) =>
-                                            form.setData(
-                                                'deskripsi_kendaraan',
-                                                event
-                                                    .target
-                                                    .value,
-                                            )
-                                        }
-                                        rows="5"
-                                        className={
-                                            kelasInput
-                                        }
-                                        placeholder="Tuliskan kondisi, keunggulan, dan penggunaan kendaraan"
-                                    />
+                                    <section className="grid gap-3 sm:grid-cols-2">
+                                        <Field
+                                            id="fasilitas"
+                                            label="Fasilitas"
+                                            error={
+                                                form
+                                                    .errors
+                                                    .fasilitas
+                                            }
+                                        >
+                                            <textarea
+                                                id="fasilitas"
+                                                rows="5"
+                                                value={
+                                                    form
+                                                        .data
+                                                        .fasilitas
+                                                }
+                                                onChange={(
+                                                    event,
+                                                ) =>
+                                                    form.setData(
+                                                        'fasilitas',
+                                                        event
+                                                            .target
+                                                            .value,
+                                                    )
+                                                }
+                                                className={
+                                                    textareaClass
+                                                }
+                                                placeholder="AC, Bluetooth, Airbag, Charger USB"
+                                            />
+                                        </Field>
 
-                                    <PesanError
-                                        message={
-                                            form.errors
-                                                .deskripsi_kendaraan
-                                        }
-                                    />
+                                        <Field
+                                            id="deskripsi_kendaraan"
+                                            label="Deskripsi"
+                                            error={
+                                                form
+                                                    .errors
+                                                    .deskripsi_kendaraan
+                                            }
+                                        >
+                                            <textarea
+                                                id="deskripsi_kendaraan"
+                                                rows="5"
+                                                value={
+                                                    form
+                                                        .data
+                                                        .deskripsi_kendaraan
+                                                }
+                                                onChange={(
+                                                    event,
+                                                ) =>
+                                                    form.setData(
+                                                        'deskripsi_kendaraan',
+                                                        event
+                                                            .target
+                                                            .value,
+                                                    )
+                                                }
+                                                className={
+                                                    textareaClass
+                                                }
+                                                placeholder="Kondisi, keunggulan, dan penggunaan kendaraan"
+                                            />
+                                        </Field>
+                                    </section>
                                 </div>
                             </div>
 
-                            <div className="mt-8 flex flex-col-reverse gap-3 border-t border-slate-700 pt-6 sm:flex-row sm:justify-end">
-                                <button
-                                    type="button"
-                                    onClick={tutupModal}
-                                    disabled={
-                                        form.processing
-                                    }
-                                    className="rounded-xl border border-slate-600 px-6 py-3 font-bold text-[#94A3B8]"
-                                >
-                                    Batal
-                                </button>
+                            <footer className="flex shrink-0 flex-col-reverse gap-2 border-t border-slate-700 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                                <p className="text-[10px] text-slate-600">
+                                    Kolom bertanda *
+                                    wajib diisi.
+                                </p>
 
-                                <button
-                                    type="submit"
-                                    disabled={
-                                        form.processing
-                                    }
-                                    className="rounded-xl bg-[#06B6D4] px-6 py-3 font-bold text-[#0B1120] transition hover:bg-[#0891B2] disabled:cursor-not-allowed disabled:opacity-50"
-                                >
-                                    {form.processing
-                                        ? 'Menyimpan...'
-                                        : kendaraanDipilih
-                                          ? 'Simpan Perubahan'
-                                          : 'Tambah Kendaraan'}
-                                </button>
-                            </div>
+                                <div className="flex gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={
+                                            tutupModal
+                                        }
+                                        disabled={
+                                            form.processing
+                                        }
+                                        className="h-9 rounded-lg border border-slate-700 px-4 text-xs font-bold text-slate-300 disabled:opacity-50"
+                                    >
+                                        Batal
+                                    </button>
+
+                                    <button
+                                        type="submit"
+                                        disabled={
+                                            form.processing
+                                        }
+                                        className="h-9 rounded-lg bg-[#06B6D4] px-4 text-xs font-black text-[#0B1120] hover:bg-[#22D3EE] disabled:opacity-50"
+                                    >
+                                        {form.processing
+                                            ? 'Menyimpan...'
+                                            : kendaraanDipilih
+                                              ? 'Simpan Perubahan'
+                                              : 'Tambah Kendaraan'}
+                                    </button>
+                                </div>
+                            </footer>
                         </form>
                     </div>
                 </div>
