@@ -12,6 +12,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -20,133 +21,55 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 class IdentitasController extends Controller
 {
     /**
-     * Menampilkan identitas berdasarkan transaksi booking.
+     * Menampilkan identitas per transaksi sewa.
      */
     public function index(Request $request): Response
     {
-        $kataPencarian = trim(
-            (string) $request->query('cari', '')
-        );
-
-        $filterStatus = trim(
-            (string) $request->query('status', '')
-        );
-
-        $statusDiizinkan = [
-            '',
-            IdentitasSewa::STATUS_MENUNGGU_VERIFIKASI,
-            IdentitasSewa::STATUS_TERVERIFIKASI,
-            IdentitasSewa::STATUS_DITOLAK,
-        ];
-
-        if (
-            ! in_array(
-                $filterStatus,
-                $statusDiizinkan,
-                true
-            )
-        ) {
-            $filterStatus = '';
-        }
-
-        $transaksis = Sewa::query()
+        $daftarIdentitas = Sewa::query()
             ->with([
                 'user:id,name,email',
                 'kendaraan:id,nama_kendaraan,merek',
                 'identitasSewa',
             ])
             ->whereHas('identitasSewa')
-            ->when(
-                $filterStatus !== '',
-                function ($query) use (
-                    $filterStatus
-                ): void {
-                    $query->whereHas(
-                        'identitasSewa',
-                        function ($subQuery) use (
-                            $filterStatus
-                        ): void {
-                            $subQuery->where(
-                                'status_verifikasi',
-                                $filterStatus
-                            );
-                        }
-                    );
-                }
-            )
-            ->when(
-                $kataPencarian !== '',
-                function ($query) use (
-                    $kataPencarian
-                ): void {
-                    $query->where(
-                        function ($subQuery) use (
-                            $kataPencarian
-                        ): void {
-                            $subQuery
-                                ->where(
-                                    'nomor_booking',
-                                    'like',
-                                    '%' . $kataPencarian . '%'
-                                )
-                                ->orWhereHas(
-                                    'user',
-                                    function ($userQuery) use (
-                                        $kataPencarian
-                                    ): void {
-                                        $userQuery
-                                            ->where(
-                                                'name',
-                                                'like',
-                                                '%' . $kataPencarian . '%'
-                                            )
-                                            ->orWhere(
-                                                'email',
-                                                'like',
-                                                '%' . $kataPencarian . '%'
-                                            );
-                                    }
-                                )
-                                ->orWhereHas(
-                                    'identitasSewa',
-                                    function ($identitasQuery) use (
-                                        $kataPencarian
-                                    ): void {
-                                        $identitasQuery
-                                            ->where(
-                                                'nama_pengguna',
-                                                'like',
-                                                '%' . $kataPencarian . '%'
-                                            )
-                                            ->orWhere(
-                                                'nik',
-                                                'like',
-                                                '%' . $kataPencarian . '%'
-                                            )
-                                            ->orWhere(
-                                                'nomor_sim',
-                                                'like',
-                                                '%' . $kataPencarian . '%'
-                                            )
-                                            ->orWhere(
-                                                'no_telepon',
-                                                'like',
-                                                '%' . $kataPencarian . '%'
-                                            );
-                                    }
-                                );
-                        }
-                    );
-                }
+            ->orderByRaw(
+                "
+                CASE
+                    WHEN status = 'menunggu_verifikasi_identitas' THEN 1
+                    WHEN status = 'identitas_ditolak' THEN 2
+                    ELSE 3
+                END
+                "
             )
             ->orderByDesc('id')
             ->get()
             ->map(function (Sewa $sewa): array {
                 $identitas = $sewa->identitasSewa;
 
+                if (! $identitas) {
+                    return [];
+                }
+
+                /*
+                 * Dokumen wajib dibaca dari identitas_sewas,
+                 * bukan dari kolom dokumen pada users.
+                 */
+                $ktpTersedia =
+                    filled($identitas->dokumen_ktp)
+                    && Storage::disk('local')->exists(
+                        $identitas->dokumen_ktp
+                    );
+
+                $simTersedia =
+                    filled($identitas->dokumen_sim)
+                    && Storage::disk('local')->exists(
+                        $identitas->dokumen_sim
+                    );
+
                 return [
                     /*
-                     * ID utama merupakan ID transaksi sewa.
+                     * ID yang dikirim ke frontend adalah ID sewa.
+                     * Route verifikasi dan dokumen juga memakai sewaId.
                      */
                     'id' =>
                         $sewa->id,
@@ -154,110 +77,97 @@ class IdentitasController extends Controller
                     'sewa_id' =>
                         $sewa->id,
 
-                    'nomor_booking' =>
-                        $sewa->nomor_booking,
+                    'identitas_id' =>
+                        $identitas->id,
 
                     /*
-                     * Nama utama merupakan nama orang yang
-                     * akan menggunakan kendaraan.
+                     * Data pengguna kendaraan untuk transaksi ini.
                      */
                     'name' =>
-                        $identitas?->nama_pengguna
-                        ?? '-',
+                        $identitas->nama_pengguna,
 
                     'nama_pengguna' =>
-                        $identitas?->nama_pengguna,
-
-                    /*
-                     * Pemilik akun dapat berbeda dengan
-                     * pengguna kendaraan.
-                     */
-                    'nama_pelanggan' =>
-                        $sewa->user?->name,
+                        $identitas->nama_pengguna,
 
                     'email' =>
                         $sewa->user?->email,
 
-                    'nik' =>
-                        $identitas?->nik,
-
-                    'nomor_sim' =>
-                        $identitas?->nomor_sim,
-
                     'no_telepon' =>
-                        $identitas?->no_telepon,
+                        $identitas->no_telepon,
 
                     'alamat' =>
-                        $identitas?->alamat,
+                        $identitas->alamat,
 
+                    'nik' =>
+                        $identitas->nik,
+
+                    'nomor_sim' =>
+                        $identitas->nomor_sim,
+
+                    /*
+                     * Status identitas transaksi.
+                     */
                     'status_identitas' =>
-                        $identitas?->status_verifikasi
-                        ?? 'belum_dilengkapi',
-
-                    'alasan_penolakan' =>
-                        $identitas?->alasan_penolakan,
+                        $identitas->status_verifikasi,
 
                     'identitas_dikirim_pada' =>
-                        $identitas
-                            ?->dikirim_pada
+                        $identitas->dikirim_pada
                             ?->toIso8601String(),
 
                     'identitas_diperiksa_pada' =>
-                        $identitas
-                            ?->diperiksa_pada
+                        $identitas->diperiksa_pada
                             ?->toIso8601String(),
 
+                    'alasan_penolakan_identitas' =>
+                        $identitas->alasan_penolakan,
+
                     /*
-                     * Admin mengakses dokumen melalui
-                     * controller privat berdasarkan sewa_id.
+                     * Status fisik file diperiksa langsung
+                     * pada disk private local.
                      */
-                    'dokumen' => [
-                        'memiliki_ktp' =>
-                            filled(
-                                $identitas?->dokumen_ktp
-                            ),
+                    'memiliki_ktp' =>
+                        $ktpTersedia,
 
-                        'memiliki_sim' =>
-                            filled(
-                                $identitas?->dokumen_sim
-                            ),
-
-                        'url_ktp' =>
-                            filled(
-                                $identitas?->dokumen_ktp
-                            )
-                                ? route(
-                                    'admin.identitas.dokumen',
-                                    [
-                                        'sewaId' =>
-                                            $sewa->id,
-
-                                        'jenis' =>
-                                            'ktp',
-                                    ]
-                                )
-                                : null,
-
-                        'url_sim' =>
-                            filled(
-                                $identitas?->dokumen_sim
-                            )
-                                ? route(
-                                    'admin.identitas.dokumen',
-                                    [
-                                        'sewaId' =>
-                                            $sewa->id,
-
-                                        'jenis' =>
-                                            'sim',
-                                    ]
-                                )
-                                : null,
-                    ],
+                    'memiliki_sim' =>
+                        $simTersedia,
 
                     /*
-                     * Tetap menggunakan array bookings agar
-                     * halaman React lama tidak langsung rusak.
+                     * URL dibuat relatif agar mengikuti host
+                     * dan port aplikasi yang sedang dibuka.
+                     */
+                    'url_ktp' =>
+                        $ktpTersedia
+                            ? route(
+                                'admin.identitas.dokumen',
+                                [
+                                    'sewaId' =>
+                                        $sewa->id,
+
+                                    'jenis' =>
+                                        'ktp',
+                                ],
+                                false
+                            )
+                            : null,
+
+                    'url_sim' =>
+                        $simTersedia
+                            ? route(
+                                'admin.identitas.dokumen',
+                                [
+                                    'sewaId' =>
+                                        $sewa->id,
+
+                                    'jenis' =>
+                                        'sim',
+                                ],
+                                false
+                            )
+                            : null,
+
+                    /*
+                     * Frontend saat ini membaca transaksi
+                     * melalui array bookings.
                      */
                     'bookings' => [
                         [
@@ -266,6 +176,9 @@ class IdentitasController extends Controller
 
                             'nomor_booking' =>
                                 $sewa->nomor_booking,
+
+                            'jenis_booking' =>
+                                $sewa->jenis_booking,
 
                             'status' =>
                                 $sewa->status,
@@ -279,15 +192,13 @@ class IdentitasController extends Controller
                                     ?->format('Y-m-d'),
 
                             'total_harga' =>
-                                (int) $sewa->total_harga,
+                                (int) ($sewa->total_harga ?? 0),
 
                             'kendaraan' =>
                                 $sewa->kendaraan
                                     ? [
                                         'id' =>
-                                            $sewa
-                                                ->kendaraan
-                                                ->id,
+                                            $sewa->kendaraan->id,
 
                                         'nama_kendaraan' =>
                                             $sewa
@@ -302,37 +213,88 @@ class IdentitasController extends Controller
                                     : null,
                         ],
                     ],
+
+                    /*
+                     * Alias untuk kompatibilitas komponen lain.
+                     */
+                    'booking' => [
+                        'id' =>
+                            $sewa->id,
+
+                        'nomor_booking' =>
+                            $sewa->nomor_booking,
+
+                        'jenis_booking' =>
+                            $sewa->jenis_booking,
+
+                        'status' =>
+                            $sewa->status,
+
+                        'tanggal_mulai' =>
+                            $sewa->tanggal_mulai
+                                ?->format('Y-m-d'),
+
+                        'tanggal_selesai' =>
+                            $sewa->tanggal_selesai
+                                ?->format('Y-m-d'),
+
+                        'total_harga' =>
+                            (int) ($sewa->total_harga ?? 0),
+
+                        'kendaraan' =>
+                            $sewa->kendaraan
+                                ? [
+                                    'id' =>
+                                        $sewa->kendaraan->id,
+
+                                    'nama_kendaraan' =>
+                                        $sewa
+                                            ->kendaraan
+                                            ->nama_kendaraan,
+
+                                    'merek' =>
+                                        $sewa
+                                            ->kendaraan
+                                            ->merek,
+                                ]
+                                : null,
+                    ],
+
+                    'dapat_diverifikasi' =>
+                        $sewa->status ===
+                            'menunggu_verifikasi_identitas'
+                        && $identitas->status_verifikasi ===
+                            IdentitasSewa::STATUS_MENUNGGU_VERIFIKASI,
                 ];
             })
+            ->filter(
+                fn (array $item): bool =>
+                    count($item) > 0
+            )
             ->values();
 
         return Inertia::render(
             'Admin/VerifikasiIdentitas',
             [
                 /*
-                 * Nama prop pelanggans dipertahankan agar
-                 * frontend lama masih dapat membaca data.
+                 * Nama prop dipertahankan supaya tidak perlu
+                 * mengubah frontend yang sudah dibuat.
                  */
                 'pelanggans' =>
-                    $transaksis,
+                    $daftarIdentitas,
 
-                'transaksis' =>
-                    $transaksis,
-
-                'filter' => [
-                    'cari' =>
-                        $kataPencarian,
-
-                    'status' =>
-                        $filterStatus,
-                ],
+                'sewaTerpilih' =>
+                    $request->integer('sewa')
+                    ?: null,
             ]
         );
     }
 
     /**
-     * Menampilkan dokumen KTP atau SIM milik
-     * satu transaksi secara privat.
+     * Menampilkan KTP atau SIM secara private.
+     *
+     * Dokumen ditampilkan inline sehingga dapat dibuka
+     * melalui modal pada halaman Verifikasi Identitas.
      */
     public function dokumen(
         Request $request,
@@ -343,10 +305,6 @@ class IdentitasController extends Controller
             $request->user()?->role === 'admin',
             403,
             'Anda tidak memiliki akses ke dokumen ini.'
-        );
-
-        $jenis = strtolower(
-            trim($jenis)
         );
 
         abort_unless(
@@ -363,7 +321,6 @@ class IdentitasController extends Controller
 
         $sewa = Sewa::query()
             ->with([
-                'user:id,name',
                 'identitasSewa',
             ])
             ->findOrFail($sewaId);
@@ -374,53 +331,48 @@ class IdentitasController extends Controller
         abort_if(
             ! $identitas,
             404,
-            'Data identitas transaksi belum tersedia.'
+            'Data identitas transaksi tidak ditemukan.'
         );
 
-        $pathDokumen =
+        $path =
             $jenis === 'ktp'
                 ? $identitas->dokumen_ktp
                 : $identitas->dokumen_sim;
 
         abort_if(
-            blank($pathDokumen),
+            blank($path),
             404,
             'Dokumen belum tersedia.'
         );
 
         abort_unless(
-            Storage::disk('local')
-                ->exists($pathDokumen),
+            Storage::disk('local')->exists($path),
             404,
             'File dokumen tidak ditemukan.'
         );
 
-        $lokasiAbsolut =
-            Storage::disk('local')
-                ->path($pathDokumen);
-
-        $ekstensi = pathinfo(
-            $pathDokumen,
-            PATHINFO_EXTENSION
-        );
-
-        $namaPengguna = preg_replace(
-            '/[^A-Za-z0-9_-]/',
-            '-',
-            $identitas->nama_pengguna
-        );
+        $ekstensi =
+            pathinfo(
+                $path,
+                PATHINFO_EXTENSION
+            );
 
         $namaFile =
             strtoupper($jenis)
             . '-'
-            . $sewa->nomor_booking
+            . Str::slug(
+                $identitas->nama_pengguna
+            )
             . '-'
-            . $namaPengguna
-            . '.'
-            . $ekstensi;
+            . $sewa->nomor_booking
+            . (
+                $ekstensi
+                    ? ".{$ekstensi}"
+                    : ''
+            );
 
         return response()->file(
-            $lokasiAbsolut,
+            Storage::disk('local')->path($path),
             [
                 'Content-Disposition' =>
                     'inline; filename="'
@@ -428,16 +380,10 @@ class IdentitasController extends Controller
                     . '"',
 
                 'Cache-Control' =>
-                    'private, no-store, no-cache, must-revalidate, max-age=0',
+                    'private, no-store, max-age=0',
 
                 'Pragma' =>
                     'no-cache',
-
-                'Expires' =>
-                    '0',
-
-                'X-Content-Type-Options' =>
-                    'nosniff',
             ]
         );
     }
@@ -449,61 +395,48 @@ class IdentitasController extends Controller
         VerifikasiIdentitasRequest $request,
         int $sewaId
     ): RedirectResponse {
-        $data = $request->validated();
-
-        $admin = $request->user();
+        $data =
+            $request->validated();
 
         $hasil = DB::transaction(
             function () use (
+                $request,
                 $sewaId,
-                $data,
-                $admin,
-                $request
+                $data
             ): array {
                 $sewa = Sewa::query()
                     ->with([
-                        'user:id,name,email',
-                        'kendaraan:id,nama_kendaraan,merek',
+                        'user',
+                        'kendaraan',
+                        'identitasSewa',
                     ])
-                    ->whereKey($sewaId)
                     ->lockForUpdate()
-                    ->firstOrFail();
+                    ->findOrFail($sewaId);
 
                 $identitas =
-                    IdentitasSewa::query()
-                        ->where(
-                            'sewa_id',
-                            $sewa->id
-                        )
-                        ->lockForUpdate()
-                        ->firstOrFail();
+                    $sewa->identitasSewa;
 
-                if (
-                    $identitas->status_verifikasi !==
-                    IdentitasSewa::STATUS_MENUNGGU_VERIFIKASI
-                ) {
+                if (! $identitas) {
                     throw ValidationException::withMessages([
-                        'aksi' =>
-                            'Identitas transaksi ini sudah pernah diproses atau belum dikirim.',
+                        'identitas' =>
+                            'Data identitas transaksi tidak ditemukan.',
                     ]);
                 }
 
                 if (
                     $sewa->status !==
-                    'menunggu_verifikasi_identitas'
+                        'menunggu_verifikasi_identitas'
+                    || $identitas->status_verifikasi !==
+                        IdentitasSewa::STATUS_MENUNGGU_VERIFIKASI
                 ) {
                     throw ValidationException::withMessages([
-                        'aksi' =>
-                            'Status booking tidak sedang menunggu verifikasi identitas.',
+                        'identitas' =>
+                            'Identitas ini sudah pernah diproses atau tidak berada pada tahap verifikasi.',
                     ]);
                 }
 
-                if (! $identitas->lengkap()) {
-                    throw ValidationException::withMessages([
-                        'aksi' =>
-                            'Data identitas transaksi belum lengkap.',
-                    ]);
-                }
+                $admin =
+                    $request->user();
 
                 if (
                     $data['aksi'] ===
@@ -523,10 +456,6 @@ class IdentitasController extends Controller
                             null,
                     ]);
 
-                    /*
-                     * Hanya booking ini yang dilanjutkan
-                     * menuju pembayaran.
-                     */
                     $sewa->update([
                         'status' =>
                             'menunggu_pembayaran',
@@ -540,10 +469,10 @@ class IdentitasController extends Controller
                             'Persetujuan Identitas',
 
                         'deskripsi' =>
-                            'Admin menyetujui identitas pengguna '
-                            . $identitas->nama_pengguna
-                            . ' untuk booking '
+                            'Admin menyetujui identitas transaksi '
                             . $sewa->nomor_booking
+                            . ' atas nama '
+                            . $identitas->nama_pengguna
                             . '.',
 
                         'alamat_ip' =>
@@ -555,10 +484,11 @@ class IdentitasController extends Controller
                             'setujui',
 
                         'sewa' =>
-                            $sewa,
-
-                        'identitas' =>
-                            $identitas,
+                            $sewa->fresh([
+                                'user',
+                                'kendaraan',
+                                'identitasSewa',
+                            ]),
                     ];
                 }
 
@@ -576,10 +506,6 @@ class IdentitasController extends Controller
                         $data['alasan_penolakan'],
                 ]);
 
-                /*
-                 * Hanya booking ini yang dikembalikan
-                 * untuk diperbaiki pelanggan.
-                 */
                 $sewa->update([
                     'status' =>
                         'identitas_ditolak',
@@ -593,12 +519,13 @@ class IdentitasController extends Controller
                         'Penolakan Identitas',
 
                     'deskripsi' =>
-                        'Admin menolak identitas pengguna '
-                        . $identitas->nama_pengguna
-                        . ' untuk booking '
+                        'Admin menolak identitas transaksi '
                         . $sewa->nomor_booking
+                        . ' atas nama '
+                        . $identitas->nama_pengguna
                         . '. Keterangan: '
-                        . $data['alasan_penolakan'],
+                        . $data['alasan_penolakan']
+                        . '.',
 
                     'alamat_ip' =>
                         $request->ip(),
@@ -609,118 +536,112 @@ class IdentitasController extends Controller
                         'tolak',
 
                     'sewa' =>
-                        $sewa,
-
-                    'identitas' =>
-                        $identitas,
+                        $sewa->fresh([
+                            'user',
+                            'kendaraan',
+                            'identitasSewa',
+                        ]),
                 ];
             }
         );
 
         /** @var Sewa $sewa */
-        $sewa = $hasil['sewa'];
+        $sewa =
+            $hasil['sewa'];
 
-        /** @var IdentitasSewa $identitas */
-        $identitas = $hasil['identitas'];
+        if ($sewa->user) {
+            if (
+                $hasil['aksi'] ===
+                'setujui'
+            ) {
+                $sewa->user->notify(
+                    new NotifikasiTransaksi(
+                        judul:
+                            'Identitas Disetujui',
 
-        $pelanggan = $sewa->user;
+                        pesan:
+                            'Identitas untuk booking '
+                            . $sewa->nomor_booking
+                            . ' telah disetujui. Silakan lanjutkan pembayaran rental.',
 
-        if (
-            $hasil['aksi'] ===
-            'setujui'
-        ) {
-            $pelanggan->notify(
-                new NotifikasiTransaksi(
-                    judul:
-                        'Identitas Booking Disetujui',
+                        jenis:
+                            'identitas_disetujui',
 
-                    pesan:
-                        'Identitas pengguna '
-                        . $identitas->nama_pengguna
-                        . ' untuk booking '
-                        . $sewa->nomor_booking
-                        . ' telah disetujui. '
-                        . 'Silakan lanjutkan pembayaran.',
+                        url:
+                            '/pelanggan/pembayaran/'
+                            . $sewa->id,
 
-                    jenis:
-                        'identitas_disetujui',
+                        sewaId:
+                            $sewa->id,
 
-                    url:
-                        '/pelanggan/pembayaran/'
-                        . $sewa->id,
+                        nomorBooking:
+                            $sewa->nomor_booking,
 
-                    sewaId:
-                        $sewa->id,
+                        dataTambahan: [
+                            'status_baru' =>
+                                'menunggu_pembayaran',
 
-                    nomorBooking:
-                        $sewa->nomor_booking,
+                            'kendaraan' =>
+                                $sewa->kendaraan
+                                    ?->nama_kendaraan,
+                        ],
+                    )
+                );
+            } else {
+                $sewa->user->notify(
+                    new NotifikasiTransaksi(
+                        judul:
+                            'Identitas Perlu Diperbaiki',
 
-                    dataTambahan: [
-                        'nama_pengguna' =>
-                            $identitas
-                                ->nama_pengguna,
+                        pesan:
+                            'Identitas untuk booking '
+                            . $sewa->nomor_booking
+                            . ' belum dapat disetujui. Keterangan: '
+                            . $sewa
+                                ->identitasSewa
+                                ?->alasan_penolakan
+                            . '. Silakan perbaiki dan kirim kembali identitas transaksi.',
 
-                        'status_baru' =>
-                            'menunggu_pembayaran',
+                        jenis:
+                            'identitas_ditolak',
 
-                        'kendaraan' =>
-                            $sewa->kendaraan
-                                ?->nama_kendaraan,
-                    ],
-                )
-            );
+                        url:
+                            '/pelanggan/identitas/'
+                            . $sewa->id,
 
-            return back()->with(
-                'success',
-                'Identitas booking berhasil disetujui. Pelanggan dapat melanjutkan pembayaran.'
-            );
+                        sewaId:
+                            $sewa->id,
+
+                        nomorBooking:
+                            $sewa->nomor_booking,
+
+                        dataTambahan: [
+                            'status_baru' =>
+                                'identitas_ditolak',
+
+                            'alasan_penolakan' =>
+                                $sewa
+                                    ->identitasSewa
+                                    ?->alasan_penolakan,
+                        ],
+                    )
+                );
+            }
         }
 
-        $pelanggan->notify(
-            new NotifikasiTransaksi(
-                judul:
-                    'Identitas Booking Perlu Diperbaiki',
-
-                pesan:
-                    'Identitas pengguna '
-                    . $identitas->nama_pengguna
-                    . ' untuk booking '
-                    . $sewa->nomor_booking
-                    . ' belum dapat disetujui. '
-                    . 'Keterangan: '
-                    . $identitas->alasan_penolakan,
-
-                jenis:
-                    'identitas_ditolak',
-
-                url:
-                    '/pelanggan/identitas/'
-                    . $sewa->id,
-
-                sewaId:
-                    $sewa->id,
-
-                nomorBooking:
-                    $sewa->nomor_booking,
-
-                dataTambahan: [
-                    'nama_pengguna' =>
-                        $identitas
-                            ->nama_pengguna,
-
-                    'status_baru' =>
-                        'identitas_ditolak',
-
-                    'kendaraan' =>
-                        $sewa->kendaraan
-                            ?->nama_kendaraan,
-                ],
+        return redirect()
+            ->route(
+                'admin.identitas.index',
+                [
+                    'sewa' =>
+                        $sewa->id,
+                ]
             )
-        );
-
-        return back()->with(
-            'success',
-            'Identitas booking ditolak dan pelanggan telah diminta memperbaiki dokumen.'
-        );
+            ->with(
+                'success',
+                $hasil['aksi'] === 'setujui'
+                    ? 'Identitas transaksi berhasil disetujui. Pelanggan dapat melanjutkan pembayaran.'
+                    : 'Identitas transaksi berhasil ditolak dan pelanggan telah menerima pemberitahuan.'
+            );
     }
 }

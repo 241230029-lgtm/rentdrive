@@ -9,6 +9,7 @@ use App\Http\Controllers\Admin\LaporanOperasionalController;
 use App\Http\Controllers\Admin\PembayaranController;
 use App\Http\Controllers\Admin\PembayaranDendaController;
 use App\Http\Controllers\Admin\PengembalianController;
+use App\Http\Controllers\Admin\PerpanjanganSewaController;
 use App\Http\Controllers\Admin\RiwayatTransaksiController;
 use Illuminate\Support\Facades\Route;
 
@@ -21,7 +22,7 @@ Route::middleware([
     ->group(function (): void {
         /*
         |--------------------------------------------------------------------------
-        | DASHBOARD ADMIN
+        | DASHBOARD
         |--------------------------------------------------------------------------
         */
 
@@ -32,7 +33,7 @@ Route::middleware([
 
         /*
         |--------------------------------------------------------------------------
-        | KELOLA BOOKING
+        | BOOKING
         |--------------------------------------------------------------------------
         */
 
@@ -62,7 +63,7 @@ Route::middleware([
 
         /*
         |--------------------------------------------------------------------------
-        | CEK KETERSEDIAAN STOK
+        | KETERSEDIAAN
         |--------------------------------------------------------------------------
         */
 
@@ -78,7 +79,7 @@ Route::middleware([
 
         /*
         |--------------------------------------------------------------------------
-        | VERIFIKASI IDENTITAS
+        | IDENTITAS
         |--------------------------------------------------------------------------
         */
 
@@ -95,13 +96,10 @@ Route::middleware([
             ]
         )
             ->whereNumber('sewaId')
-            ->whereIn(
-                'jenis',
-                [
-                    'ktp',
-                    'sim',
-                ]
-            )
+            ->whereIn('jenis', [
+                'ktp',
+                'sim',
+            ])
             ->name('identitas.dokumen');
 
         Route::post(
@@ -116,7 +114,61 @@ Route::middleware([
 
         /*
         |--------------------------------------------------------------------------
-        | VERIFIKASI PEMBAYARAN DENDA
+        | PERPANJANGAN RENTAL
+        |--------------------------------------------------------------------------
+        */
+
+        Route::get('/perpanjangan', [
+            PerpanjanganSewaController::class,
+            'index',
+        ])->name('perpanjangan.index');
+
+        /*
+         * Verifikasi pengajuan awal.
+         */
+        Route::post(
+            '/perpanjangan/{perpanjanganId}/verifikasi',
+            [
+                PerpanjanganSewaController::class,
+                'verifikasi',
+            ]
+        )
+            ->whereNumber('perpanjanganId')
+            ->name('perpanjangan.verifikasi');
+
+        /*
+         * Menampilkan bukti pembayaran perpanjangan
+         * dari penyimpanan private.
+         */
+        Route::get(
+            '/perpanjangan/{perpanjanganId}/bukti',
+            [
+                PerpanjanganSewaController::class,
+                'buktiPembayaran',
+            ]
+        )
+            ->whereNumber('perpanjanganId')
+            ->name('perpanjangan.bukti');
+
+        /*
+         * Menyetujui atau menolak pembayaran
+         * biaya tambahan perpanjangan.
+         */
+        Route::post(
+            '/perpanjangan/{perpanjanganId}/verifikasi-pembayaran',
+            [
+                PerpanjanganSewaController::class,
+                'verifikasiPembayaran',
+            ]
+        )
+            ->whereNumber('perpanjanganId')
+            ->name(
+                'perpanjangan.verifikasi-pembayaran'
+            );
+
+        /*
+        |--------------------------------------------------------------------------
+        | DENDA
         |--------------------------------------------------------------------------
         */
 
@@ -141,7 +193,7 @@ Route::middleware([
 
         /*
         |--------------------------------------------------------------------------
-        | KELOLA KENDARAAN
+        | KENDARAAN
         |--------------------------------------------------------------------------
         */
 
@@ -189,7 +241,7 @@ Route::middleware([
 
         /*
         |--------------------------------------------------------------------------
-        | RIWAYAT TRANSAKSI
+        | RIWAYAT
         |--------------------------------------------------------------------------
         */
 
@@ -200,7 +252,7 @@ Route::middleware([
 
         /*
         |--------------------------------------------------------------------------
-        | LAPORAN OPERASIONAL
+        | LAPORAN
         |--------------------------------------------------------------------------
         */
 

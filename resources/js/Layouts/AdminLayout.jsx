@@ -155,6 +155,23 @@ function IkonKendaraan() {
     );
 }
 
+function IkonPerpanjangan() {
+    return (
+        <Ikon>
+            <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M7 3v4M17 3v4M4 9h16M5 5h14a1 1 0 0 1 1 1v14H4V6a1 1 0 0 1 1-1Z"
+            />
+
+            <path
+                strokeLinecap="round"
+                d="M12 12v6M9 15h6"
+            />
+        </Ikon>
+    );
+}
+
 function IkonPengembalian() {
     return (
         <Ikon>
@@ -358,6 +375,20 @@ export default function AdminLayout({
 
         {
             label:
+                'Perpanjangan Rental',
+
+            routeName:
+                'admin.perpanjangan.index',
+
+            active:
+                'admin.perpanjangan.*',
+
+            icon:
+                <IkonPerpanjangan />,
+        },
+
+        {
+            label:
                 'Pengembalian',
 
             routeName:
@@ -548,6 +579,7 @@ export default function AdminLayout({
                                 Kelola booking,
                                 armada,
                                 pembayaran,
+                                perpanjangan,
                                 pengembalian, dan
                                 laporan RentDrive
                                 melalui panel

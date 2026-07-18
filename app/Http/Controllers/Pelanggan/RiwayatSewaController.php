@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Pelanggan;
 
 use App\Http\Controllers\Controller;
+use App\Models\PerpanjanganSewa;
 use App\Models\Sewa;
+use App\Services\SinkronisasiStatusSewaService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -11,17 +13,53 @@ use Inertia\Response;
 
 class RiwayatSewaController extends Controller
 {
+    public function __construct(
+        private readonly SinkronisasiStatusSewaService $statusService
+    ) {
+    }
+
     /**
-     * Menampilkan seluruh transaksi milik pelanggan.
-     *
-     * Informasi internal seperti stok, jumlah unit,
-     * dan plat nomor kendaraan tidak dikirimkan.
+     * Menampilkan seluruh transaksi pelanggan.
      */
     public function index(Request $request): Response
     {
         $user = $request->user();
 
-        $riwayatSewa = Sewa::query()
+        /*
+         * Sebelum data ditampilkan, status transaksi
+         * disinkronkan berdasarkan tanggal mulai.
+         */
+        $this->statusService
+            ->sinkronkanPelanggan(
+                $user->id
+            );
+
+        /*
+         * Denda pada transaksi mana pun tetap memblokir
+         * booking dan pengajuan perpanjangan akun.
+         */
+        $memilikiDendaBelumLunas =
+            Sewa::query()
+                ->where(
+                    'user_id',
+                    $user->id
+                )
+                ->where(
+                    'total_denda',
+                    '>',
+                    0
+                )
+                ->whereIn(
+                    'status_pembayaran_denda',
+                    [
+                        Sewa::DENDA_BELUM_DIBAYAR,
+                        Sewa::DENDA_MENUNGGU_VERIFIKASI,
+                        Sewa::DENDA_DITOLAK,
+                    ]
+                )
+                ->exists();
+
+        $daftarSewa = Sewa::query()
             ->with([
                 'kendaraan:id,nama_kendaraan,merek,foto_kendaraan,harga_per_hari',
             ])
@@ -43,7 +81,7 @@ class RiwayatSewaController extends Controller
                 'bukti_pembayaran',
 
                 /*
-                 * Pengembalian.
+                 * Data pengembalian.
                  */
                 'tanggal_kembali_aktual',
                 'kondisi_kendaraan_kembali',
@@ -74,253 +112,433 @@ class RiwayatSewaController extends Controller
                 'status',
                 'created_at',
                 'updated_at',
-            ])
-            ->map(function (Sewa $sewa): array {
-                $totalDenda = max(
-                    0,
-                    (int) ($sewa->total_denda ?? 0)
+            ]);
+
+        $daftarSewaId =
+            $daftarSewa
+                ->pluck('id');
+
+        /*
+         * Mengambil seluruh pengajuan perpanjangan
+         * lalu menentukan pengajuan terakhir setiap transaksi.
+         */
+        $perpanjanganTerakhir =
+            PerpanjanganSewa::query()
+                ->whereIn(
+                    'sewa_id',
+                    $daftarSewaId
+                )
+                ->orderByDesc('id')
+                ->get()
+                ->groupBy('sewa_id')
+                ->map(
+                    fn ($items) =>
+                        $items->first()
                 );
 
-                /*
-                 * Transaksi lama yang memiliki denda tetapi
-                 * belum mempunyai status pembayaran tetap
-                 * ditampilkan sebagai belum dibayar.
-                 */
-                $statusPembayaranDenda =
-                    $this->normalisasiStatusPembayaranDenda(
-                        $sewa,
-                        $totalDenda
-                    );
+        /*
+         * Menentukan transaksi yang masih mempunyai
+         * permintaan perpanjangan menunggu persetujuan.
+         */
+        $sewaDenganPerpanjanganAktif =
+            PerpanjanganSewa::query()
+                ->whereIn(
+                    'sewa_id',
+                    $daftarSewaId
+                )
+                ->where(
+                    'status',
+                    PerpanjanganSewa::STATUS_MENUNGGU_PERSETUJUAN
+                )
+                ->pluck('sewa_id')
+                ->flip();
 
-                $tanggalSelesai = $sewa->tanggal_selesai
-                    ? Carbon::parse(
-                        $sewa->tanggal_selesai
-                    )->startOfDay()
-                    : null;
+        $hariIni =
+            now()->startOfDay();
 
-                $tanggalKembali = $sewa->tanggal_kembali_aktual
-                    ? Carbon::parse(
-                        $sewa->tanggal_kembali_aktual
-                    )->startOfDay()
-                    : null;
-
-                $hariTerlambat = 0;
-
-                if (
-                    $tanggalSelesai
-                    && $tanggalKembali
-                    && $tanggalKembali->greaterThan(
-                        $tanggalSelesai
-                    )
-                ) {
-                    $hariTerlambat =
-                        (int) $tanggalSelesai
-                            ->diffInDays(
-                                $tanggalKembali
+        $riwayatSewa =
+            $daftarSewa
+                ->map(
+                    function (
+                        Sewa $sewa
+                    ) use (
+                        $perpanjanganTerakhir,
+                        $sewaDenganPerpanjanganAktif,
+                        $memilikiDendaBelumLunas,
+                        $hariIni
+                    ): array {
+                        $totalDenda =
+                            max(
+                                0,
+                                (int) (
+                                    $sewa->total_denda
+                                    ?? 0
+                                )
                             );
-                }
 
-                $memilikiDataPengembalian =
-                    filled(
-                        $sewa->tanggal_kembali_aktual
-                    )
-                    || filled(
-                        $sewa->kondisi_kendaraan_kembali
-                    )
-                    || filled(
-                        $sewa->foto_kondisi_kembali
-                    )
-                    || $totalDenda > 0
-                    || $sewa->status === 'selesai';
+                        $statusPembayaranDenda =
+                            $this
+                                ->normalisasiStatusPembayaranDenda(
+                                    $sewa,
+                                    $totalDenda
+                                );
 
-                return [
-                    'id' =>
-                        $sewa->id,
-
-                    'nomor_booking' =>
-                        $sewa->nomor_booking,
-
-                    'jenis_booking' =>
-                        $sewa->jenis_booking,
-
-                    'tanggal_mulai' =>
-                        $this->formatTanggal(
-                            $sewa->tanggal_mulai
-                        ),
-
-                    'tanggal_selesai' =>
-                        $this->formatTanggal(
+                        $tanggalSelesai =
                             $sewa->tanggal_selesai
-                        ),
+                                ? Carbon::parse(
+                                    $sewa->tanggal_selesai
+                                )->startOfDay()
+                                : null;
 
-                    'total_harga' =>
-                        (int) (
-                            $sewa->total_harga
-                            ?? 0
-                        ),
+                        $tanggalKembali =
+                            $sewa->tanggal_kembali_aktual
+                                ? Carbon::parse(
+                                    $sewa->tanggal_kembali_aktual
+                                )->startOfDay()
+                                : null;
 
-                    'metode_pembayaran' =>
-                        $sewa->metode_pembayaran,
+                        $hariTerlambat =
+                            0;
 
-                    'status' =>
-                        $sewa->status,
+                        if (
+                            $tanggalSelesai
+                            && $tanggalKembali
+                            && $tanggalKembali
+                                ->greaterThan(
+                                    $tanggalSelesai
+                                )
+                        ) {
+                            $hariTerlambat =
+                                (int) $tanggalSelesai
+                                    ->diffInDays(
+                                        $tanggalKembali
+                                    );
+                        }
 
-                    'alasan_penolakan' =>
-                        $sewa->alasan_penolakan,
-
-                    'jenis_penolakan' =>
-                        $sewa->jenis_penolakan,
-
-                    'kategori_penolakan' =>
-                        $sewa->kategori_penolakan,
-
-                    'created_at' =>
-                        $sewa->created_at
-                            ?->toIso8601String(),
-
-                    'updated_at' =>
-                        $sewa->updated_at
-                            ?->toIso8601String(),
-
-                    /*
-                     * Kendaraan tanpa informasi stok internal.
-                     */
-                    'kendaraan' =>
-                        $sewa->kendaraan
-                            ? [
-                                'id' =>
-                                    $sewa->kendaraan->id,
-
-                                'nama_kendaraan' =>
-                                    $sewa->kendaraan
-                                        ->nama_kendaraan,
-
-                                'merek' =>
-                                    $sewa->kendaraan
-                                        ->merek,
-
-                                'foto_kendaraan' =>
-                                    $sewa->kendaraan
-                                        ->foto_kendaraan,
-
-                                'harga_per_hari' =>
-                                    (int) (
-                                        $sewa->kendaraan
-                                            ->harga_per_hari
-                                        ?? 0
-                                    ),
-                            ]
-                            : null,
-
-                    /*
-                     * Detail pengembalian kendaraan.
-                     */
-                    'pengembalian' =>
-                        $memilikiDataPengembalian
-                            ? [
-                                'tanggal_seharusnya' =>
-                                    $this->formatTanggal(
-                                        $sewa->tanggal_selesai
-                                    ),
-
-                                'tanggal_kembali_aktual' =>
-                                    $this->formatTanggal(
-                                        $sewa
-                                            ->tanggal_kembali_aktual
-                                    ),
-
-                                'hari_terlambat' =>
-                                    $hariTerlambat,
-
-                                'kondisi_kendaraan' =>
-                                    $sewa
-                                        ->kondisi_kendaraan_kembali,
-
-                                'foto_kondisi' =>
-                                    $sewa
-                                        ->foto_kondisi_kembali,
-
-                                'kilometer_kembali' =>
-                                    $sewa
-                                        ->kilometer_kembali,
-
-                                'denda_keterlambatan' =>
-                                    (int) (
-                                        $sewa
-                                            ->denda_keterlambatan
-                                        ?? 0
-                                    ),
-
-                                'denda_kerusakan' =>
-                                    (int) (
-                                        $sewa
-                                            ->denda_kerusakan
-                                        ?? 0
-                                    ),
-
-                                'total_denda' =>
-                                    $totalDenda,
-                            ]
-                            : null,
-
-                    /*
-                     * Informasi pembayaran denda.
-                     */
-                    'pembayaran_denda' => [
-                        'status' =>
-                            $statusPembayaranDenda,
-
-                        'metode' =>
-                            $sewa
-                                ->metode_pembayaran_denda,
-
-                        'memiliki_bukti' =>
+                        $memilikiDataPengembalian =
                             filled(
-                                $sewa
-                                    ->bukti_pembayaran_denda
-                            ),
+                                $sewa->tanggal_kembali_aktual
+                            )
+                            || filled(
+                                $sewa->kondisi_kendaraan_kembali
+                            )
+                            || filled(
+                                $sewa->foto_kondisi_kembali
+                            )
+                            || $totalDenda > 0
+                            || $sewa->status ===
+                                'selesai';
 
-                        'alasan_penolakan' =>
-                            $sewa
-                                ->alasan_penolakan_pembayaran_denda,
+                        $pengajuanTerakhir =
+                            $perpanjanganTerakhir
+                                ->get(
+                                    $sewa->id
+                                );
 
-                        'dibayar_pada' =>
-                            $sewa->denda_dibayar_pada
-                                ?->toIso8601String(),
+                        $memilikiPerpanjanganAktif =
+                            $sewaDenganPerpanjanganAktif
+                                ->has(
+                                    $sewa->id
+                                );
 
-                        'diperiksa_pada' =>
-                            $sewa->denda_diperiksa_pada
-                                ?->toIso8601String(),
-
-                        /*
-                         * Tombol pembayaran hanya aktif apabila
-                         * tagihan belum dibayar atau sebelumnya
-                         * ditolak oleh admin.
-                         */
-                        'boleh_membayar' =>
-                            $totalDenda > 0
-                            && in_array(
-                                $statusPembayaranDenda,
+                        $statusDapatDiperpanjang =
+                            in_array(
+                                $sewa->status,
                                 [
-                                    Sewa::DENDA_BELUM_DIBAYAR,
-                                    Sewa::DENDA_DITOLAK,
+                                    'disetujui_operasional',
+                                    'sedang_berlangsung',
                                 ],
                                 true
-                            ),
-                    ],
+                            );
 
-                    /*
-                     * Alias agar komponen frontend lebih mudah
-                     * membaca status denda.
-                     */
-                    'total_denda' =>
-                        $totalDenda,
+                        $masaRentalBelumBerakhir =
+                            $tanggalSelesai
+                            && $hariIni
+                                ->lessThanOrEqualTo(
+                                    $tanggalSelesai
+                                );
 
-                    'status_pembayaran_denda' =>
-                        $statusPembayaranDenda,
-                ];
-            })
-            ->values();
+                        $bolehMengajukanPerpanjangan =
+                            $statusDapatDiperpanjang
+                            && $masaRentalBelumBerakhir
+                            && ! $memilikiDendaBelumLunas
+                            && ! $memilikiPerpanjanganAktif;
+
+                        $alasanPerpanjanganTidakTersedia =
+                            $this
+                                ->tentukanAlasanPerpanjanganTidakTersedia(
+                                    statusDapatDiperpanjang:
+                                        $statusDapatDiperpanjang,
+
+                                    masaRentalBelumBerakhir:
+                                        $masaRentalBelumBerakhir,
+
+                                    memilikiDendaBelumLunas:
+                                        $memilikiDendaBelumLunas,
+
+                                    memilikiPerpanjanganAktif:
+                                        $memilikiPerpanjanganAktif
+                                );
+
+                        return [
+                            'id' =>
+                                $sewa->id,
+
+                            'nomor_booking' =>
+                                $sewa->nomor_booking,
+
+                            'jenis_booking' =>
+                                $sewa->jenis_booking,
+
+                            'tanggal_mulai' =>
+                                $this->formatTanggal(
+                                    $sewa->tanggal_mulai
+                                ),
+
+                            'tanggal_selesai' =>
+                                $this->formatTanggal(
+                                    $sewa->tanggal_selesai
+                                ),
+
+                            'total_harga' =>
+                                (int) (
+                                    $sewa->total_harga
+                                    ?? 0
+                                ),
+
+                            'metode_pembayaran' =>
+                                $sewa->metode_pembayaran,
+
+                            'status' =>
+                                $sewa->status,
+
+                            'alasan_penolakan' =>
+                                $sewa->alasan_penolakan,
+
+                            'jenis_penolakan' =>
+                                $sewa->jenis_penolakan,
+
+                            'kategori_penolakan' =>
+                                $sewa->kategori_penolakan,
+
+                            'created_at' =>
+                                $sewa->created_at
+                                    ?->toIso8601String(),
+
+                            'updated_at' =>
+                                $sewa->updated_at
+                                    ?->toIso8601String(),
+
+                            /*
+                             * Kendaraan tanpa stok, unit,
+                             * dan plat nomor.
+                             */
+                            'kendaraan' =>
+                                $sewa->kendaraan
+                                    ? [
+                                        'id' =>
+                                            $sewa
+                                                ->kendaraan
+                                                ->id,
+
+                                        'nama_kendaraan' =>
+                                            $sewa
+                                                ->kendaraan
+                                                ->nama_kendaraan,
+
+                                        'merek' =>
+                                            $sewa
+                                                ->kendaraan
+                                                ->merek,
+
+                                        'foto_kendaraan' =>
+                                            $sewa
+                                                ->kendaraan
+                                                ->foto_kendaraan,
+
+                                        'harga_per_hari' =>
+                                            (int) (
+                                                $sewa
+                                                    ->kendaraan
+                                                    ->harga_per_hari
+                                                ?? 0
+                                            ),
+                                    ]
+                                    : null,
+
+                            /*
+                             * Informasi perpanjangan.
+                             */
+                            'boleh_mengajukan_perpanjangan' =>
+                                $bolehMengajukanPerpanjangan,
+
+                            'alasan_perpanjangan_tidak_tersedia' =>
+                                $alasanPerpanjanganTidakTersedia,
+
+                            'memiliki_perpanjangan_aktif' =>
+                                $memilikiPerpanjanganAktif,
+
+                            'perpanjangan' =>
+                                $pengajuanTerakhir
+                                    ? [
+                                        'id' =>
+                                            $pengajuanTerakhir
+                                                ->id,
+
+                                        'tanggal_selesai_lama' =>
+                                            $pengajuanTerakhir
+                                                ->tanggal_selesai_lama
+                                                ?->format(
+                                                    'Y-m-d'
+                                                ),
+
+                                        'tanggal_selesai_baru' =>
+                                            $pengajuanTerakhir
+                                                ->tanggal_selesai_baru
+                                                ?->format(
+                                                    'Y-m-d'
+                                                ),
+
+                                        'jumlah_hari_tambahan' =>
+                                            (int) $pengajuanTerakhir
+                                                ->jumlah_hari_tambahan,
+
+                                        'harga_per_hari' =>
+                                            (int) $pengajuanTerakhir
+                                                ->harga_per_hari,
+
+                                        'biaya_tambahan' =>
+                                            (int) $pengajuanTerakhir
+                                                ->biaya_tambahan,
+
+                                        'alasan_pengajuan' =>
+                                            $pengajuanTerakhir
+                                                ->alasan_pengajuan,
+
+                                        'status' =>
+                                            $pengajuanTerakhir
+                                                ->status,
+
+                                        'alasan_penolakan' =>
+                                            $pengajuanTerakhir
+                                                ->alasan_penolakan,
+
+                                        'diajukan_pada' =>
+                                            $pengajuanTerakhir
+                                                ->diajukan_pada
+                                                ?->toIso8601String(),
+
+                                        'diproses_pada' =>
+                                            $pengajuanTerakhir
+                                                ->diproses_pada
+                                                ?->toIso8601String(),
+                                    ]
+                                    : null,
+
+                            /*
+                             * Detail pengembalian.
+                             */
+                            'pengembalian' =>
+                                $memilikiDataPengembalian
+                                    ? [
+                                        'tanggal_seharusnya' =>
+                                            $this->formatTanggal(
+                                                $sewa
+                                                    ->tanggal_selesai
+                                            ),
+
+                                        'tanggal_kembali_aktual' =>
+                                            $this->formatTanggal(
+                                                $sewa
+                                                    ->tanggal_kembali_aktual
+                                            ),
+
+                                        'hari_terlambat' =>
+                                            $hariTerlambat,
+
+                                        'kondisi_kendaraan' =>
+                                            $sewa
+                                                ->kondisi_kendaraan_kembali,
+
+                                        'foto_kondisi' =>
+                                            $sewa
+                                                ->foto_kondisi_kembali,
+
+                                        'kilometer_kembali' =>
+                                            $sewa
+                                                ->kilometer_kembali,
+
+                                        'denda_keterlambatan' =>
+                                            (int) (
+                                                $sewa
+                                                    ->denda_keterlambatan
+                                                ?? 0
+                                            ),
+
+                                        'denda_kerusakan' =>
+                                            (int) (
+                                                $sewa
+                                                    ->denda_kerusakan
+                                                ?? 0
+                                            ),
+
+                                        'total_denda' =>
+                                            $totalDenda,
+                                    ]
+                                    : null,
+
+                            /*
+                             * Informasi pembayaran denda.
+                             */
+                            'pembayaran_denda' => [
+                                'status' =>
+                                    $statusPembayaranDenda,
+
+                                'metode' =>
+                                    $sewa
+                                        ->metode_pembayaran_denda,
+
+                                'memiliki_bukti' =>
+                                    filled(
+                                        $sewa
+                                            ->bukti_pembayaran_denda
+                                    ),
+
+                                'alasan_penolakan' =>
+                                    $sewa
+                                        ->alasan_penolakan_pembayaran_denda,
+
+                                'dibayar_pada' =>
+                                    $sewa
+                                        ->denda_dibayar_pada
+                                        ?->toIso8601String(),
+
+                                'diperiksa_pada' =>
+                                    $sewa
+                                        ->denda_diperiksa_pada
+                                        ?->toIso8601String(),
+
+                                'boleh_membayar' =>
+                                    $totalDenda > 0
+                                    && in_array(
+                                        $statusPembayaranDenda,
+                                        [
+                                            Sewa::DENDA_BELUM_DIBAYAR,
+                                            Sewa::DENDA_DITOLAK,
+                                        ],
+                                        true
+                                    ),
+                            ],
+
+                            'total_denda' =>
+                                $totalDenda,
+
+                            'status_pembayaran_denda' =>
+                                $statusPembayaranDenda,
+                        ];
+                    }
+                )
+                ->values();
 
         $statusAktif = [
             'disetujui_operasional',
@@ -338,22 +556,23 @@ class RiwayatSewaController extends Controller
             'ditolak_pembayaran',
         ];
 
-        $tagihanDendaAktif = $riwayatSewa
-            ->filter(
-                fn (array $item): bool =>
-                    (int) $item['total_denda'] > 0
-                    && in_array(
-                        $item[
-                            'status_pembayaran_denda'
-                        ],
-                        [
-                            Sewa::DENDA_BELUM_DIBAYAR,
-                            Sewa::DENDA_MENUNGGU_VERIFIKASI,
-                            Sewa::DENDA_DITOLAK,
-                        ],
-                        true
-                    )
-            );
+        $tagihanDendaAktif =
+            $riwayatSewa
+                ->filter(
+                    fn (array $item): bool =>
+                        (int) $item['total_denda'] > 0
+                        && in_array(
+                            $item[
+                                'status_pembayaran_denda'
+                            ],
+                            [
+                                Sewa::DENDA_BELUM_DIBAYAR,
+                                Sewa::DENDA_MENUNGGU_VERIFIKASI,
+                                Sewa::DENDA_DITOLAK,
+                            ],
+                            true
+                        )
+                );
 
         $ringkasan = [
             'total_transaksi' =>
@@ -389,7 +608,17 @@ class RiwayatSewaController extends Controller
 
             'total_denda_belum_lunas' =>
                 (int) $tagihanDendaAktif
-                    ->sum('total_denda'),
+                    ->sum(
+                        'total_denda'
+                    ),
+
+            'perpanjangan_menunggu' =>
+                $riwayatSewa
+                    ->where(
+                        'memiliki_perpanjangan_aktif',
+                        true
+                    )
+                    ->count(),
         ];
 
         return Inertia::render(
@@ -398,20 +627,52 @@ class RiwayatSewaController extends Controller
                 'riwayatSewa' =>
                     $riwayatSewa,
 
-                /*
-                 * Alias untuk kompatibilitas dengan kode lama.
-                 */
                 'riwayat' =>
                     $riwayatSewa,
 
                 'ringkasan' =>
                     $ringkasan,
+
+                'memilikiDendaBelumLunas' =>
+                    $memilikiDendaBelumLunas,
             ]
         );
     }
 
     /**
-     * Menentukan status pembayaran denda yang ditampilkan.
+     * Menentukan alasan tombol perpanjangan tidak aktif.
+     */
+    private function tentukanAlasanPerpanjanganTidakTersedia(
+        bool $statusDapatDiperpanjang,
+        bool $masaRentalBelumBerakhir,
+        bool $memilikiDendaBelumLunas,
+        bool $memilikiPerpanjanganAktif
+    ): ?string {
+        if ($memilikiDendaBelumLunas) {
+            return
+                'Perpanjangan tidak tersedia karena akun masih memiliki denda yang belum lunas.';
+        }
+
+        if ($memilikiPerpanjanganAktif) {
+            return
+                'Permintaan perpanjangan sedang menunggu persetujuan admin.';
+        }
+
+        if (! $masaRentalBelumBerakhir) {
+            return
+                'Masa rental sudah berakhir.';
+        }
+
+        if (! $statusDapatDiperpanjang) {
+            return
+                'Perpanjangan hanya tersedia pada transaksi disetujui atau sedang berlangsung.';
+        }
+
+        return null;
+    }
+
+    /**
+     * Menentukan status pembayaran denda.
      */
     private function normalisasiStatusPembayaranDenda(
         Sewa $sewa,
@@ -423,9 +684,11 @@ class RiwayatSewaController extends Controller
 
         if (
             blank(
-                $sewa->status_pembayaran_denda
+                $sewa
+                    ->status_pembayaran_denda
             )
-            || $sewa->status_pembayaran_denda ===
+            || $sewa
+                ->status_pembayaran_denda ===
                 Sewa::DENDA_TIDAK_ADA
         ) {
             return Sewa::DENDA_BELUM_DIBAYAR;

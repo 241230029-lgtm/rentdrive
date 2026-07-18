@@ -10,170 +10,197 @@ import {
     useState,
 } from 'react';
 
-const informasiStatus = {
+const INFORMASI_STATUS = {
     menunggu_konfirmasi_admin: {
         label: 'Menunggu Konfirmasi',
-        kelas:
+        className:
             'border-amber-500/30 bg-amber-500/10 text-amber-300',
-        keterangan:
-            'Permintaan booking sedang diperiksa admin.',
+        description:
+            'Permintaan booking sedang diperiksa oleh admin.',
     },
 
     ditolak_booking: {
         label: 'Booking Ditolak',
-        kelas:
+        className:
             'border-rose-500/30 bg-rose-500/10 text-rose-300',
-        keterangan:
+        description:
             'Permintaan booking belum dapat dilanjutkan.',
     },
 
     menunggu_identitas: {
         label: 'Lengkapi Identitas',
-        kelas:
+        className:
             'border-violet-500/30 bg-violet-500/10 text-violet-300',
-        keterangan:
+        description:
             'Booking disetujui. Lengkapi identitas transaksi.',
     },
 
     menunggu_verifikasi_identitas: {
         label: 'Verifikasi Identitas',
-        kelas:
+        className:
             'border-sky-500/30 bg-sky-500/10 text-sky-300',
-        keterangan:
-            'Identitas sedang diperiksa admin.',
+        description:
+            'Identitas transaksi sedang diperiksa admin.',
     },
 
     identitas_ditolak: {
         label: 'Perbaiki Identitas',
-        kelas:
+        className:
             'border-rose-500/30 bg-rose-500/10 text-rose-300',
-        keterangan:
-            'Dokumen identitas perlu diperbaiki.',
+        description:
+            'Identitas transaksi perlu diperbaiki.',
     },
 
     menunggu_pembayaran: {
         label: 'Menunggu Pembayaran',
-        kelas:
+        className:
             'border-violet-500/30 bg-violet-500/10 text-violet-300',
-        keterangan:
-            'Identitas disetujui. Lanjutkan pembayaran sewa.',
+        description:
+            'Identitas disetujui. Lanjutkan pembayaran rental.',
     },
 
     menunggu_verifikasi_pembayaran: {
         label: 'Verifikasi Pembayaran',
-        kelas:
+        className:
             'border-sky-500/30 bg-sky-500/10 text-sky-300',
-        keterangan:
-            'Pembayaran sewa sedang diperiksa admin.',
+        description:
+            'Pembayaran sedang diperiksa oleh admin.',
     },
 
     ditolak_pembayaran: {
         label: 'Pembayaran Ditolak',
-        kelas:
+        className:
             'border-rose-500/30 bg-rose-500/10 text-rose-300',
-        keterangan:
+        description:
             'Pembayaran perlu diperbaiki atau dikirim ulang.',
     },
 
     disetujui_operasional: {
         label: 'Disetujui',
-        kelas:
+        className:
             'border-emerald-500/30 bg-emerald-500/10 text-emerald-300',
-        keterangan:
-            'Transaksi telah disetujui dan siap dijalankan.',
+        description:
+            'Transaksi telah disetujui dan siap dijalankan sesuai jadwal.',
     },
 
     sedang_berlangsung: {
         label: 'Sedang Berlangsung',
-        kelas:
+        className:
             'border-cyan-500/30 bg-cyan-500/10 text-cyan-300',
-        keterangan:
+        description:
             'Kendaraan sedang berada dalam masa penyewaan.',
     },
 
     menunggu_verifikasi_pengembalian: {
         label: 'Proses Pengembalian',
-        kelas:
+        className:
             'border-orange-500/30 bg-orange-500/10 text-orange-300',
-        keterangan:
+        description:
             'Pengembalian kendaraan sedang diproses.',
     },
 
     selesai: {
         label: 'Selesai',
-        kelas:
+        className:
             'border-slate-500/30 bg-slate-500/10 text-slate-300',
-        keterangan:
+        description:
             'Transaksi penyewaan telah selesai.',
     },
 
     dibatalkan: {
         label: 'Dibatalkan',
-        kelas:
+        className:
             'border-slate-500/30 bg-slate-500/10 text-slate-400',
-        keterangan:
+        description:
             'Transaksi telah dibatalkan.',
     },
 };
 
-const informasiDenda = {
+const INFORMASI_DENDA = {
     tidak_ada: {
         label: 'Tidak Ada Denda',
-        kelas:
+        className:
             'border-emerald-500/30 bg-emerald-500/10 text-emerald-300',
     },
 
     belum_dibayar: {
         label: 'Denda Belum Dibayar',
-        kelas:
+        className:
             'border-rose-500/30 bg-rose-500/10 text-rose-300',
     },
 
     menunggu_verifikasi: {
         label: 'Denda Menunggu Verifikasi',
-        kelas:
+        className:
             'border-sky-500/30 bg-sky-500/10 text-sky-300',
     },
 
     ditolak: {
         label: 'Pembayaran Denda Ditolak',
-        kelas:
+        className:
             'border-rose-500/30 bg-rose-500/10 text-rose-300',
     },
 
     lunas: {
         label: 'Denda Lunas',
-        kelas:
+        className:
             'border-emerald-500/30 bg-emerald-500/10 text-emerald-300',
+    },
+};
+
+const INFORMASI_PERPANJANGAN = {
+    menunggu_persetujuan: {
+        label: 'Menunggu Persetujuan',
+        className:
+            'border-sky-500/30 bg-sky-500/10 text-sky-300',
+        description:
+            'Permintaan perpanjangan sedang diperiksa admin.',
+    },
+
+    disetujui: {
+        label: 'Perpanjangan Disetujui',
+        className:
+            'border-emerald-500/30 bg-emerald-500/10 text-emerald-300',
+        description:
+            'Tanggal selesai rental telah diperbarui.',
+    },
+
+    ditolak: {
+        label: 'Perpanjangan Ditolak',
+        className:
+            'border-rose-500/30 bg-rose-500/10 text-rose-300',
+        description:
+            'Permintaan perpanjangan belum dapat disetujui.',
     },
 };
 
 const inputClass =
     'h-10 w-full rounded-lg border border-slate-700 bg-[#0B1120] px-3 text-xs font-semibold text-white outline-none transition placeholder:text-slate-600 focus:border-[#06B6D4] focus:ring-2 focus:ring-[#06B6D4]/10';
 
-function formatRupiah(nilai) {
+function formatRupiah(value) {
     return Number(
-        nilai ?? 0,
+        value ?? 0,
     ).toLocaleString(
         'id-ID',
     );
 }
 
-function formatTanggal(nilai) {
-    if (!nilai) {
+function formatTanggal(value) {
+    if (!value) {
         return '-';
     }
 
-    const tanggalBersih =
-        String(nilai).split('T')[0];
+    const clean =
+        String(value).split('T')[0];
 
-    const tanggal = new Date(
-        `${tanggalBersih}T00:00:00`,
-    );
+    const date =
+        new Date(
+            `${clean}T00:00:00`,
+        );
 
     if (
         Number.isNaN(
-            tanggal.getTime(),
+            date.getTime(),
         )
     ) {
         return '-';
@@ -186,20 +213,20 @@ function formatTanggal(nilai) {
             month: 'short',
             year: 'numeric',
         },
-    ).format(tanggal);
+    ).format(date);
 }
 
-function formatWaktu(nilai) {
-    if (!nilai) {
+function formatWaktu(value) {
+    if (!value) {
         return '-';
     }
 
-    const tanggal =
-        new Date(nilai);
+    const date =
+        new Date(value);
 
     if (
         Number.isNaN(
-            tanggal.getTime(),
+            date.getTime(),
         )
     ) {
         return '-';
@@ -214,7 +241,7 @@ function formatWaktu(nilai) {
             hour: '2-digit',
             minute: '2-digit',
         },
-    ).format(tanggal);
+    ).format(date);
 }
 
 function buatUrlFile(path) {
@@ -222,19 +249,19 @@ function buatUrlFile(path) {
         return null;
     }
 
-    const nilai =
+    const value =
         String(path).trim();
 
     if (
-        nilai.startsWith('http://') ||
-        nilai.startsWith('https://') ||
-        nilai.startsWith('/') ||
-        nilai.startsWith('blob:')
+        value.startsWith('http://') ||
+        value.startsWith('https://') ||
+        value.startsWith('/') ||
+        value.startsWith('blob:')
     ) {
-        return nilai;
+        return value;
     }
 
-    return `/storage/${nilai}`;
+    return `/storage/${value}`;
 }
 
 function StatCard({
@@ -269,7 +296,7 @@ function InfoItem({
             </p>
 
             <p
-                className={`mt-1 break-words text-xs font-bold ${valueClass}`}
+                className={`mt-1 break-words text-xs font-bold leading-5 ${valueClass}`}
             >
                 {value ?? '-'}
             </p>
@@ -281,7 +308,9 @@ function StatusBadge({
     status,
 }) {
     const info =
-        informasiStatus[status] ?? {
+        INFORMASI_STATUS[
+            status
+        ] ?? {
             label:
                 String(
                     status ?? '-',
@@ -290,13 +319,13 @@ function StatusBadge({
                     ' ',
                 ),
 
-            kelas:
+            className:
                 'border-slate-600 bg-slate-800 text-slate-300',
         };
 
     return (
         <span
-            className={`inline-flex w-fit rounded-full border px-2.5 py-1 text-[8px] font-black uppercase tracking-wider ${info.kelas}`}
+            className={`inline-flex w-fit rounded-full border px-2.5 py-1 text-[8px] font-black uppercase tracking-wider ${info.className}`}
         >
             {info.label}
         </span>
@@ -307,12 +336,42 @@ function DendaBadge({
     status,
 }) {
     const info =
-        informasiDenda[status] ??
-        informasiDenda.tidak_ada;
+        INFORMASI_DENDA[
+            status
+        ] ??
+        INFORMASI_DENDA.tidak_ada;
 
     return (
         <span
-            className={`inline-flex w-fit rounded-full border px-2.5 py-1 text-[8px] font-black uppercase tracking-wider ${info.kelas}`}
+            className={`inline-flex w-fit rounded-full border px-2.5 py-1 text-[8px] font-black uppercase tracking-wider ${info.className}`}
+        >
+            {info.label}
+        </span>
+    );
+}
+
+function PerpanjanganBadge({
+    status,
+}) {
+    const info =
+        INFORMASI_PERPANJANGAN[
+            status
+        ] ?? {
+            label:
+                String(
+                    status ?? '-',
+                ).replaceAll(
+                    '_',
+                    ' ',
+                ),
+
+            className:
+                'border-slate-600 bg-slate-800 text-slate-300',
+        };
+
+    return (
+        <span
+            className={`inline-flex w-fit rounded-full border px-2.5 py-1 text-[8px] font-black uppercase tracking-wider ${info.className}`}
         >
             {info.label}
         </span>
@@ -327,6 +386,10 @@ function Foto({
         gagal,
         setGagal,
     ] = useState(false);
+
+    useEffect(() => {
+        setGagal(false);
+    }, [src]);
 
     if (
         !src ||
@@ -351,6 +414,147 @@ function Foto({
     );
 }
 
+function DetailPerpanjangan({
+    item,
+}) {
+    const perpanjangan =
+        item?.perpanjangan;
+
+    if (!perpanjangan) {
+        return null;
+    }
+
+    const info =
+        INFORMASI_PERPANJANGAN[
+            perpanjangan.status
+        ] ?? null;
+
+    return (
+        <section className="mt-3 overflow-hidden rounded-xl border border-violet-500/20 bg-[#0B1120]">
+            <header className="flex flex-col gap-2 border-b border-slate-800 px-4 py-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                    <p className="text-[9px] font-black uppercase tracking-[0.15em] text-violet-300">
+                        Perpanjangan Rental
+                    </p>
+
+                    <h3 className="mt-1 text-sm font-black text-white">
+                        Pengajuan Perpanjangan Terakhir
+                    </h3>
+                </div>
+
+                <PerpanjanganBadge
+                    status={
+                        perpanjangan.status
+                    }
+                />
+            </header>
+
+            <div className="p-4">
+                {info?.description && (
+                    <p className="rounded-lg border border-slate-800 bg-[#10192B] px-3 py-2.5 text-xs leading-5 text-slate-400">
+                        {info.description}
+                    </p>
+                )}
+
+                <div className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-4">
+                    <InfoItem
+                        label="Tanggal Lama"
+                        value={formatTanggal(
+                            perpanjangan
+                                .tanggal_selesai_lama,
+                        )}
+                    />
+
+                    <InfoItem
+                        label="Tanggal Baru"
+                        value={formatTanggal(
+                            perpanjangan
+                                .tanggal_selesai_baru,
+                        )}
+                    />
+
+                    <InfoItem
+                        label="Tambahan Durasi"
+                        value={`${Number(
+                            perpanjangan
+                                .jumlah_hari_tambahan ??
+                                0,
+                        )} hari`}
+                        valueClass="text-violet-300"
+                    />
+
+                    <InfoItem
+                        label="Biaya Tambahan"
+                        value={`Rp ${formatRupiah(
+                            perpanjangan
+                                .biaya_tambahan,
+                        )}`}
+                        valueClass="text-[#06B6D4]"
+                    />
+                </div>
+
+                <div className="mt-3 rounded-lg border border-slate-800 bg-[#10192B] p-3">
+                    <p className="text-[9px] font-black uppercase tracking-wider text-slate-600">
+                        Alasan Pengajuan
+                    </p>
+
+                    <p className="mt-2 whitespace-pre-line text-xs leading-5 text-slate-300">
+                        {perpanjangan
+                            .alasan_pengajuan ||
+                            '-'}
+                    </p>
+                </div>
+
+                {perpanjangan
+                    .alasan_penolakan && (
+                    <div className="mt-3 rounded-lg border border-rose-500/30 bg-rose-500/10 p-3">
+                        <p className="text-[9px] font-black uppercase tracking-wider text-rose-300">
+                            Alasan Penolakan
+                        </p>
+
+                        <p className="mt-2 whitespace-pre-line text-xs leading-5 text-rose-100/80">
+                            {
+                                perpanjangan
+                                    .alasan_penolakan
+                            }
+                        </p>
+                    </div>
+                )}
+
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                    <InfoItem
+                        label="Diajukan"
+                        value={formatWaktu(
+                            perpanjangan
+                                .diajukan_pada,
+                        )}
+                    />
+
+                    <InfoItem
+                        label="Diproses"
+                        value={formatWaktu(
+                            perpanjangan
+                                .diproses_pada,
+                        )}
+                    />
+                </div>
+
+                <div className="mt-3 flex justify-end border-t border-slate-800 pt-3">
+                    <Link
+                        href={route(
+                            'pelanggan.perpanjangan.show',
+                            item.id,
+                        )}
+                        className="inline-flex h-9 items-center justify-center rounded-lg border border-violet-500/30 bg-violet-500/10 px-4 text-xs font-black text-violet-300 transition hover:bg-violet-500/20"
+                    >
+                        Lihat Detail Perpanjangan
+                    </Link>
+                </div>
+            </div>
+        </section>
+    );
+}
+
 function DetailPengembalian({
     item,
 }) {
@@ -363,7 +567,8 @@ function DetailPengembalian({
 
     const totalDenda =
         Number(
-            pengembalian.total_denda ??
+            pengembalian
+                .total_denda ??
                 0,
         );
 
@@ -589,14 +794,14 @@ function DetailPengembalian({
                         </p>
 
                         <p className="mt-1 text-[10px] leading-5 text-slate-400">
-                            Pembayaran disetujui admin pada{' '}
+                            Pembayaran disetujui pada{' '}
                             {formatWaktu(
                                 item
                                     ?.pembayaran_denda
                                     ?.diperiksa_pada,
                             )}
-                            . Akun dapat melakukan booking
-                            kembali.
+                            . Akun dapat melakukan
+                            booking kembali.
                         </p>
                     </div>
                 )}
@@ -609,9 +814,8 @@ function DetailPengembalian({
                             </p>
 
                             <p className="mt-1 text-[10px] leading-4 text-slate-500">
-                                Tagihan denda terhubung
-                                langsung dengan transaksi
-                                ini.
+                                Tagihan terhubung langsung
+                                dengan transaksi ini.
                             </p>
                         </div>
 
@@ -707,6 +911,8 @@ function RiwayatSewa({
                         item.status,
                         item
                             .status_pembayaran_denda,
+                        item.perpanjangan
+                            ?.status,
                     ]
                         .filter(Boolean)
                         .join(' ')
@@ -730,13 +936,13 @@ function RiwayatSewa({
             return;
         }
 
-        const parameter =
+        const params =
             new URLSearchParams(
                 window.location.search,
             );
 
         const sewaId =
-            parameter.get(
+            params.get(
                 'sewa',
             );
 
@@ -783,9 +989,9 @@ function RiwayatSewa({
                         </h1>
 
                         <p className="mt-1 max-w-2xl text-xs leading-5 text-slate-500">
-                            Pantau proses booking,
-                            pembayaran, pengembalian,
-                            dan tagihan denda.
+                            Pantau booking, pembayaran,
+                            masa rental, perpanjangan,
+                            pengembalian, dan denda.
                         </p>
                     </div>
 
@@ -793,7 +999,7 @@ function RiwayatSewa({
                         href={route(
                             'pelanggan.katalog',
                         )}
-                        className="inline-flex h-9 items-center justify-center rounded-lg bg-[#06B6D4] px-4 text-xs font-black text-[#0B1120] hover:bg-cyan-300"
+                        className="inline-flex h-9 items-center justify-center rounded-lg bg-[#06B6D4] px-4 text-xs font-black text-[#0B1120] transition hover:bg-cyan-300"
                     >
                         Booking Kendaraan
                     </Link>
@@ -820,9 +1026,7 @@ function RiwayatSewa({
                                 index,
                             ) => (
                                 <p
-                                    key={
-                                        index
-                                    }
+                                    key={`${error}-${index}`}
                                     className="text-xs leading-5 text-rose-300"
                                 >
                                     {error}
@@ -845,7 +1049,7 @@ function RiwayatSewa({
                                 </p>
 
                                 <p className="mt-1 text-xs leading-5 text-rose-100/70">
-                                    Anda memiliki{' '}
+                                    Terdapat{' '}
                                     {Number(
                                         ringkasan
                                             .jumlah_tagihan_denda ??
@@ -856,10 +1060,10 @@ function RiwayatSewa({
                                         ringkasan
                                             .total_denda_belum_lunas,
                                     )}
-                                    . Booking baru tidak
-                                    dapat dilakukan sebelum
-                                    seluruh denda disetujui
-                                    admin.
+                                    . Booking dan
+                                    perpanjangan tidak dapat
+                                    dilakukan sebelum seluruh
+                                    denda lunas.
                                 </p>
                             </div>
 
@@ -902,7 +1106,7 @@ function RiwayatSewa({
                     </section>
                 )}
 
-                <section className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-5">
+                <section className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-6">
                     <StatCard
                         label="Total Transaksi"
                         value={Number(
@@ -940,6 +1144,16 @@ function RiwayatSewa({
                                 0,
                         )}
                         valueClass="text-emerald-300"
+                    />
+
+                    <StatCard
+                        label="Perpanjangan"
+                        value={Number(
+                            ringkasan
+                                .perpanjangan_menunggu ??
+                                0,
+                        )}
+                        valueClass="text-violet-300"
                     />
 
                     <StatCard
@@ -991,7 +1205,7 @@ function RiwayatSewa({
                         </option>
 
                         {Object.entries(
-                            informasiStatus,
+                            INFORMASI_STATUS,
                         ).map(
                             ([
                                 value,
@@ -1024,7 +1238,7 @@ function RiwayatSewa({
                                 '',
                             );
                         }}
-                        className="h-10 rounded-lg border border-slate-700 px-4 text-xs font-bold text-slate-400 hover:border-slate-500 hover:text-white"
+                        className="h-10 rounded-lg border border-slate-700 px-4 text-xs font-bold text-slate-400 transition hover:border-slate-500 hover:text-white"
                     >
                         Reset
                     </button>
@@ -1051,11 +1265,11 @@ function RiwayatSewa({
                         hasilFilter.map(
                             (item) => {
                                 const statusInfo =
-                                    informasiStatus[
+                                    INFORMASI_STATUS[
                                         item
                                             .status
                                     ] ?? {
-                                        keterangan:
+                                        description:
                                             '',
                                     };
 
@@ -1078,6 +1292,18 @@ function RiwayatSewa({
                                     item
                                         .status_pembayaran_denda ??
                                     'tidak_ada';
+
+                                const bolehPerpanjang =
+                                    Boolean(
+                                        item
+                                            .boleh_mengajukan_perpanjangan,
+                                    );
+
+                                const perpanjanganAktif =
+                                    Boolean(
+                                        item
+                                            .memiliki_perpanjangan_aktif,
+                                    );
 
                                 return (
                                     <article
@@ -1107,7 +1333,7 @@ function RiwayatSewa({
                                                         />
                                                     ) : (
                                                         <span className="text-4xl opacity-30">
-                                                            🛵
+                                                            🚗
                                                         </span>
                                                     )}
                                                 </div>
@@ -1148,6 +1374,17 @@ function RiwayatSewa({
                                                                 }
                                                             />
 
+                                                            {item
+                                                                .perpanjangan && (
+                                                                <PerpanjanganBadge
+                                                                    status={
+                                                                        item
+                                                                            .perpanjangan
+                                                                            .status
+                                                                    }
+                                                                />
+                                                            )}
+
                                                             {totalDenda >
                                                                 0 && (
                                                                 <DendaBadge
@@ -1161,7 +1398,7 @@ function RiwayatSewa({
 
                                                     <p className="mt-3 text-[11px] leading-5 text-slate-500">
                                                         {
-                                                            statusInfo.keterangan
+                                                            statusInfo.description
                                                         }
                                                     </p>
 
@@ -1258,6 +1495,50 @@ function RiwayatSewa({
                                                             </Link>
                                                         )}
 
+                                                        {bolehPerpanjang && (
+                                                            <Link
+                                                                href={route(
+                                                                    'pelanggan.perpanjangan.show',
+                                                                    item.id,
+                                                                )}
+                                                                className="inline-flex h-9 items-center rounded-lg bg-violet-500 px-4 text-xs font-black text-white transition hover:bg-violet-400"
+                                                            >
+                                                                Ajukan Perpanjangan
+                                                            </Link>
+                                                        )}
+
+                                                        {perpanjanganAktif && (
+                                                            <Link
+                                                                href={route(
+                                                                    'pelanggan.perpanjangan.show',
+                                                                    item.id,
+                                                                )}
+                                                                className="inline-flex h-9 items-center rounded-lg border border-sky-500/30 bg-sky-500/10 px-4 text-xs font-black text-sky-300"
+                                                            >
+                                                                Menunggu Persetujuan
+                                                            </Link>
+                                                        )}
+
+                                                        {item.perpanjangan &&
+                                                            !bolehPerpanjang &&
+                                                            !perpanjanganAktif &&
+                                                            [
+                                                                'disetujui_operasional',
+                                                                'sedang_berlangsung',
+                                                            ].includes(
+                                                                item.status,
+                                                            ) && (
+                                                                <Link
+                                                                    href={route(
+                                                                        'pelanggan.perpanjangan.show',
+                                                                        item.id,
+                                                                    )}
+                                                                    className="inline-flex h-9 items-center rounded-lg border border-violet-500/30 bg-violet-500/10 px-4 text-xs font-black text-violet-300"
+                                                                >
+                                                                    Lihat Perpanjangan
+                                                                </Link>
+                                                            )}
+
                                                         {totalDenda >
                                                             0 && (
                                                             <Link
@@ -1295,13 +1576,30 @@ function RiwayatSewa({
                                                                         : item.id,
                                                                 )
                                                             }
-                                                            className="h-9 rounded-lg border border-slate-700 px-4 text-xs font-bold text-slate-300 hover:border-[#06B6D4] hover:text-[#06B6D4]"
+                                                            className="h-9 rounded-lg border border-slate-700 px-4 text-xs font-bold text-slate-300 transition hover:border-[#06B6D4] hover:text-[#06B6D4]"
                                                         >
                                                             {detailAktif
                                                                 ? 'Tutup Detail'
                                                                 : 'Lihat Detail'}
                                                         </button>
                                                     </div>
+
+                                                    {!bolehPerpanjang &&
+                                                        item
+                                                            .alasan_perpanjangan_tidak_tersedia &&
+                                                        [
+                                                            'disetujui_operasional',
+                                                            'sedang_berlangsung',
+                                                        ].includes(
+                                                            item.status,
+                                                        ) && (
+                                                            <p className="mt-2 text-[10px] leading-4 text-slate-600">
+                                                                {
+                                                                    item
+                                                                        .alasan_perpanjangan_tidak_tersedia
+                                                                }
+                                                            </p>
+                                                        )}
                                                 </div>
                                             </div>
 
@@ -1344,6 +1642,12 @@ function RiwayatSewa({
                                                             )}
                                                         />
                                                     </div>
+
+                                                    <DetailPerpanjangan
+                                                        item={
+                                                            item
+                                                        }
+                                                    />
 
                                                     <DetailPengembalian
                                                         item={

@@ -6,6 +6,7 @@ use App\Http\Controllers\Pelanggan\IdentitasController;
 use App\Http\Controllers\Pelanggan\KatalogController;
 use App\Http\Controllers\Pelanggan\PembayaranController;
 use App\Http\Controllers\Pelanggan\PembayaranDendaController;
+use App\Http\Controllers\Pelanggan\PerpanjanganSewaController;
 use App\Http\Controllers\Pelanggan\ProfileController;
 use App\Http\Controllers\Pelanggan\RiwayatSewaController;
 use Illuminate\Support\Facades\Route;
@@ -30,7 +31,7 @@ Route::middleware([
 
         /*
         |--------------------------------------------------------------------------
-        | KATALOG KENDARAAN
+        | KATALOG
         |--------------------------------------------------------------------------
         */
 
@@ -72,7 +73,7 @@ Route::middleware([
 
         /*
         |--------------------------------------------------------------------------
-        | PEMBAYARAN SEWA UTAMA
+        | PEMBAYARAN SEWA
         |--------------------------------------------------------------------------
         */
 
@@ -89,6 +90,52 @@ Route::middleware([
         ])
             ->whereNumber('id')
             ->name('sewa.pembayaran.unggah');
+
+        /*
+        |--------------------------------------------------------------------------
+        | PERPANJANGAN RENTAL
+        |--------------------------------------------------------------------------
+        */
+
+        Route::get('/perpanjangan/{id}', [
+            PerpanjanganSewaController::class,
+            'show',
+        ])
+            ->whereNumber('id')
+            ->name('perpanjangan.show');
+
+        Route::post('/perpanjangan/{id}', [
+            PerpanjanganSewaController::class,
+            'store',
+        ])
+            ->whereNumber('id')
+            ->name('perpanjangan.store');
+
+        /*
+         * Pembayaran biaya tambahan perpanjangan.
+         */
+        Route::post(
+            '/perpanjangan/{perpanjanganId}/pembayaran',
+            [
+                PerpanjanganSewaController::class,
+                'storePembayaran',
+            ]
+        )
+            ->whereNumber('perpanjanganId')
+            ->name('perpanjangan.pembayaran');
+
+        /*
+         * Bukti pembayaran private.
+         */
+        Route::get(
+            '/perpanjangan/{perpanjanganId}/bukti',
+            [
+                PerpanjanganSewaController::class,
+                'buktiPembayaran',
+            ]
+        )
+            ->whereNumber('perpanjanganId')
+            ->name('perpanjangan.bukti');
 
         /*
         |--------------------------------------------------------------------------
@@ -119,7 +166,7 @@ Route::middleware([
 
         /*
         |--------------------------------------------------------------------------
-        | PROFIL PELANGGAN
+        | PROFIL
         |--------------------------------------------------------------------------
         */
 
