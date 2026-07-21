@@ -7,69 +7,34 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Menambahkan alur verifikasi identitas pelanggan.
-     *
-     * Dokumen identitas baru diminta setelah booking
-     * mendapatkan persetujuan awal dari admin.
-     */
     public function up(): void
     {
-        Schema::table('users', function (Blueprint $table): void {
-            $table->string('status_identitas', 40)
-                ->default('belum_dilengkapi');
-
-            $table->timestamp('identitas_dikirim_pada')
-                ->nullable();
-
-            $table->timestamp('identitas_diperiksa_pada')
-                ->nullable();
+        Schema::table('users', function (Blueprint $table) {
+            $table->string('status_identitas', 40)->default('belum_dilengkapi');
+            $table->timestamp('identitas_dikirim_pada')->nullable();
+            $table->timestamp('identitas_diperiksa_pada')->nullable();
 
             $table->foreignId('identitas_diperiksa_oleh')
                 ->nullable()
                 ->constrained('users')
                 ->nullOnDelete();
 
-            $table->text('alasan_penolakan_identitas')
-                ->nullable();
+            $table->text('alasan_penolakan_identitas')->nullable();
         });
 
-        /*
-         * Mengubah status sewa menjadi string.
-         *
-         * Ini diperlukan agar status baru seperti:
-         * - menunggu_identitas
-         * - menunggu_verifikasi_identitas
-         * - identitas_ditolak
-         *
-         * dapat digunakan pada SQLite maupun MySQL.
-         */
-        $this->ubahStatusSewaMenjadiString();
+        // Ubah ENUM menjadi VARCHAR
+        DB::statement("
+            ALTER TABLE sewas
+            MODIFY status VARCHAR(80)
+            NOT NULL
+            DEFAULT 'menunggu_konfirmasi_admin'
+        ");
     }
 
-    /**
-     * Menghapus penambahan ketika migration di-rollback.
-     */
     public function down(): void
     {
-        /*
-         * Kembalikan status identitas ke status pembayaran
-         * agar tidak ada status yang kehilangan konteks.
-         */
-        DB::table('sewas')
-            ->whereIn('status', [
-                'menunggu_identitas',
-                'menunggu_verifikasi_identitas',
-                'identitas_ditolak',
-            ])
-            ->update([
-                'status' => 'menunggu_pembayaran',
-            ]);
-
-        Schema::table('users', function (Blueprint $table): void {
-            $table->dropConstrainedForeignId(
-                'identitas_diperiksa_oleh'
-            );
+        Schema::table('users', function (Blueprint $table) {
+            $table->dropConstrainedForeignId('identitas_diperiksa_oleh');
 
             $table->dropColumn([
                 'status_identitas',
@@ -78,60 +43,23 @@ return new class extends Migration
                 'alasan_penolakan_identitas',
             ]);
         });
-    }
 
-    /**
-     * Mengganti kolom status dari ENUM menjadi VARCHAR
-     * tanpa menghilangkan nilai status yang sudah tersimpan.
-     */
-    private function ubahStatusSewaMenjadiString(): void
-    {
-        if (! Schema::hasTable('sewas')) {
-            return;
-        }
-
-        if (! Schema::hasColumn('sewas', 'status')) {
-            return;
-        }
-
-        /*
-         * Mencegah proses dijalankan ulang apabila kolom
-         * sementara masih tersedia.
-         */
-        if (
-            Schema::hasColumn(
-                'sewas',
-                'status_sebelum_identitas'
+        DB::statement("
+            ALTER TABLE sewas
+            MODIFY status ENUM(
+                'menunggu_konfirmasi_admin',
+                'ditolak_booking',
+                'menunggu_pembayaran',
+                'menunggu_verifikasi_pembayaran',
+                'ditolak_pembayaran',
+                'disetujui_operasional',
+                'sedang_berlangsung',
+                'menunggu_verifikasi_pengembalian',
+                'selesai',
+                'dibatalkan'
             )
-        ) {
-            return;
-        }
-
-        Schema::table('sewas', function (Blueprint $table): void {
-            $table->renameColumn(
-                'status',
-                'status_sebelum_identitas'
-            );
-        });
-
-        Schema::table('sewas', function (Blueprint $table): void {
-            $table->string('status', 80)
-                ->default('menunggu_konfirmasi_admin');
-        });
-
-        /*
-         * Salin semua status lama ke kolom status baru.
-         */
-        DB::table('sewas')->update([
-            'status' => DB::raw(
-                'status_sebelum_identitas'
-            ),
-        ]);
-
-        Schema::table('sewas', function (Blueprint $table): void {
-            $table->dropColumn(
-                'status_sebelum_identitas'
-            );
-        });
+            NOT NULL
+            DEFAULT 'menunggu_konfirmasi_admin'
+        ");
     }
 };

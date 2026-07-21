@@ -314,20 +314,15 @@ class IdentitasController extends Controller
                     }
 
                     $payload = [
-                        'nama_pengguna' =>
-                            $data['nama_pengguna'],
+                         'nama_pengguna' => $data['nama_pengguna'],
 
-                        'nik' =>
-                            $data['nik'],
+                        'nik' => null,
 
-                        'nomor_sim' =>
-                            $data['nomor_sim'],
+                        'nomor_sim' => null,
 
-                        'no_telepon' =>
-                            $data['no_telepon'],
+                        'no_telepon' => $data['no_telepon'],
 
-                        'alamat' =>
-                            $data['alamat'],
+                        'alamat' => $data['alamat'],
 
                         'dokumen_ktp' =>
                             $pathKtpYangDisimpan,

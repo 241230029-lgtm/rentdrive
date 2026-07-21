@@ -488,14 +488,6 @@ function Identitas({
                 ?.nama_pengguna ??
             '',
 
-        nik:
-            identitas?.nik ??
-            '',
-
-        nomor_sim:
-            identitas
-                ?.nomor_sim ??
-            '',
 
         no_telepon:
             identitas
@@ -908,78 +900,7 @@ function Identitas({
                                                 150
                                             }
                                             autoComplete="name"
-                                        />
-
-                                        <TextField
-                                            id="nik"
-                                            label="NIK"
-                                            value={
-                                                form
-                                                    .data
-                                                    .nik
-                                            }
-                                            onChange={(
-                                                event,
-                                            ) => {
-                                                const nilai =
-                                                    event.target.value
-                                                        .replace(
-                                                            /\D/g,
-                                                            '',
-                                                        )
-                                                        .slice(
-                                                            0,
-                                                            16,
-                                                        );
-
-                                                form.setData(
-                                                    'nik',
-                                                    nilai,
-                                                );
-                                            }}
-                                            error={
-                                                form
-                                                    .errors
-                                                    .nik
-                                            }
-                                            placeholder="16 digit NIK"
-                                            maxLength={
-                                                16
-                                            }
-                                            inputMode="numeric"
-                                            helper={`${form.data.nik.length}/16 angka`}
-                                        />
-
-                                        <TextField
-                                            id="nomor_sim"
-                                            label="Nomor SIM"
-                                            value={
-                                                form
-                                                    .data
-                                                    .nomor_sim
-                                            }
-                                            onChange={(
-                                                event,
-                                            ) =>
-                                                form.setData(
-                                                    'nomor_sim',
-                                                    event
-                                                        .target
-                                                        .value
-                                                        .toUpperCase(),
-                                                )
-                                            }
-                                            error={
-                                                form
-                                                    .errors
-                                                    .nomor_sim
-                                            }
-                                            placeholder="Nomor SIM pengguna"
-                                            maxLength={
-                                                50
-                                            }
-                                        />
-
+                                        />  
                                         <TextField
                                             id="no_telepon"
                                             label="Nomor Telepon Pengguna"

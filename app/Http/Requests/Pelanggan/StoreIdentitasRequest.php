@@ -121,17 +121,12 @@ class StoreIdentitasRequest extends FormRequest
             ],
 
             'nik' => [
-                'required',
-                'digits:16',
-            ],
+                'nullable',
+],
 
             'nomor_sim' => [
-                'required',
-                'string',
-                'min:6',
-                'max:50',
-                'regex:/^[A-Z0-9\-\/\. ]+$/',
-            ],
+                     'nullable',
+],
 
             'no_telepon' => [
                 'required',
