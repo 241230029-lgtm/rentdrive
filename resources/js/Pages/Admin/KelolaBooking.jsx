@@ -476,8 +476,6 @@ function KelolaBooking({
         email: '',
         no_telepon: '',
         alamat: '',
-        nik: '',
-        nomor_sim: '',
         dokumen_ktp: null,
         dokumen_sim: null,
         kendaraan_id: '',
@@ -1586,99 +1584,6 @@ function KelolaBooking({
                                                     walkInForm
                                                         .errors
                                                         .no_telepon
-                                                }
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <Label
-                                                htmlFor="nik"
-                                                required
-                                            >
-                                                NIK
-                                            </Label>
-
-                                            <input
-                                                id="nik"
-                                                type="text"
-                                                inputMode="numeric"
-                                                maxLength="16"
-                                                value={
-                                                    walkInForm
-                                                        .data
-                                                        .nik
-                                                }
-                                                onChange={(
-                                                    event,
-                                                ) =>
-                                                    walkInForm.setData(
-                                                        'nik',
-                                                        event
-                                                            .target
-                                                            .value
-                                                            .replace(
-                                                                /\D/g,
-                                                                '',
-                                                            )
-                                                            .slice(
-                                                                0,
-                                                                16,
-                                                            ),
-                                                    )
-                                                }
-                                                placeholder="16 angka NIK"
-                                                className={
-                                                    inputClass
-                                                }
-                                            />
-
-                                            <FieldError
-                                                message={
-                                                    walkInForm
-                                                        .errors
-                                                        .nik
-                                                }
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <Label
-                                                htmlFor="nomor_sim"
-                                                required
-                                            >
-                                                Nomor SIM
-                                            </Label>
-
-                                            <input
-                                                id="nomor_sim"
-                                                type="text"
-                                                value={
-                                                    walkInForm
-                                                        .data
-                                                        .nomor_sim
-                                                }
-                                                onChange={(
-                                                    event,
-                                                ) =>
-                                                    walkInForm.setData(
-                                                        'nomor_sim',
-                                                        event
-                                                            .target
-                                                            .value
-                                                            .toUpperCase(),
-                                                    )
-                                                }
-                                                placeholder="Nomor SIM pengguna kendaraan"
-                                                className={
-                                                    inputClass
-                                                }
-                                            />
-
-                                            <FieldError
-                                                message={
-                                                    walkInForm
-                                                        .errors
-                                                        .nomor_sim
                                                 }
                                             />
                                         </div>

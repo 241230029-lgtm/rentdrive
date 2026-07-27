@@ -9,32 +9,53 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('users', function (Blueprint $table) {
-            $table->string('status_identitas', 40)->default('belum_dilengkapi');
-            $table->timestamp('identitas_dikirim_pada')->nullable();
-            $table->timestamp('identitas_diperiksa_pada')->nullable();
+        Schema::table('users', function (Blueprint $table): void {
+            $table->string(
+                'status_identitas',
+                40
+            )->default('belum_dilengkapi');
 
-            $table->foreignId('identitas_diperiksa_oleh')
+            $table->timestamp(
+                'identitas_dikirim_pada'
+            )->nullable();
+
+            $table->timestamp(
+                'identitas_diperiksa_pada'
+            )->nullable();
+
+            $table->foreignId(
+                'identitas_diperiksa_oleh'
+            )
                 ->nullable()
                 ->constrained('users')
                 ->nullOnDelete();
 
-            $table->text('alasan_penolakan_identitas')->nullable();
+            $table->text(
+                'alasan_penolakan_identitas'
+            )->nullable();
         });
 
-        // Ubah ENUM menjadi VARCHAR
-        DB::statement("
-            ALTER TABLE sewas
-            MODIFY status VARCHAR(80)
-            NOT NULL
-            DEFAULT 'menunggu_konfirmasi_admin'
-        ");
+        /*
+         * ALTER TABLE ... MODIFY hanya dijalankan pada MySQL.
+         * SQLite sudah memakai kolom status bertipe string
+         * dari migration pembuatan tabel sewas.
+         */
+        if (DB::connection()->getDriverName() === 'mysql') {
+            DB::statement("
+                ALTER TABLE sewas
+                MODIFY status VARCHAR(80)
+                NOT NULL
+                DEFAULT 'menunggu_konfirmasi_admin'
+            ");
+        }
     }
 
     public function down(): void
     {
-        Schema::table('users', function (Blueprint $table) {
-            $table->dropConstrainedForeignId('identitas_diperiksa_oleh');
+        Schema::table('users', function (Blueprint $table): void {
+            $table->dropConstrainedForeignId(
+                'identitas_diperiksa_oleh'
+            );
 
             $table->dropColumn([
                 'status_identitas',
@@ -44,22 +65,24 @@ return new class extends Migration
             ]);
         });
 
-        DB::statement("
-            ALTER TABLE sewas
-            MODIFY status ENUM(
-                'menunggu_konfirmasi_admin',
-                'ditolak_booking',
-                'menunggu_pembayaran',
-                'menunggu_verifikasi_pembayaran',
-                'ditolak_pembayaran',
-                'disetujui_operasional',
-                'sedang_berlangsung',
-                'menunggu_verifikasi_pengembalian',
-                'selesai',
-                'dibatalkan'
-            )
-            NOT NULL
-            DEFAULT 'menunggu_konfirmasi_admin'
-        ");
+        if (DB::connection()->getDriverName() === 'mysql') {
+            DB::statement("
+                ALTER TABLE sewas
+                MODIFY status ENUM(
+                    'menunggu_konfirmasi_admin',
+                    'ditolak_booking',
+                    'menunggu_pembayaran',
+                    'menunggu_verifikasi_pembayaran',
+                    'ditolak_pembayaran',
+                    'disetujui_operasional',
+                    'sedang_berlangsung',
+                    'menunggu_verifikasi_pengembalian',
+                    'selesai',
+                    'dibatalkan'
+                )
+                NOT NULL
+                DEFAULT 'menunggu_konfirmasi_admin'
+            ");
+        }
     }
 };

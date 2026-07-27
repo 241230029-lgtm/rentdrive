@@ -22,8 +22,6 @@ class IdentitasSewa extends Model
     protected $fillable = [
         'sewa_id',
         'nama_pengguna',
-        'nik',
-        'nomor_sim',
         'no_telepon',
         'alamat',
         'dokumen_ktp',
@@ -105,8 +103,6 @@ class IdentitasSewa extends Model
         return filled(
             $this->nama_pengguna
         )
-            && filled($this->nik)
-            && filled($this->nomor_sim)
             && filled($this->no_telepon)
             && filled($this->alamat)
             && filled($this->dokumen_ktp)

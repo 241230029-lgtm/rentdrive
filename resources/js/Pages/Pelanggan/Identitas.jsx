@@ -813,8 +813,6 @@ function Identitas({
                                         memeriksa
                                         nama
                                         pengguna,
-                                        NIK, nomor
-                                        SIM,
                                         telepon,
                                         alamat, KTP,
                                         dan SIM.
@@ -1123,8 +1121,7 @@ function Identitas({
                                                 Saya
                                                 menyetujui
                                                 penggunaan
-                                                nama, NIK,
-                                                nomor SIM,
+                                                nama,
                                                 telepon,
                                                 alamat,
                                                 KTP, dan

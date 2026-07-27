@@ -797,12 +797,6 @@ class BookingService
                         'nama_pengguna' =>
                             $data['nama_pelanggan'],
 
-                        'nik' =>
-                            $data['nik'],
-
-                        'nomor_sim' =>
-                            $data['nomor_sim'],
-
                         'no_telepon' =>
                             $data['no_telepon'],
 

@@ -36,16 +36,6 @@ return new class extends Migration
                 );
 
                 $table->string(
-                    'nik',
-                    30
-                )->nullable();
-
-                $table->string(
-                    'nomor_sim',
-                    50
-                )->nullable();
-
-                $table->string(
                     'no_telepon',
                     30
                 );

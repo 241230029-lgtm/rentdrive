@@ -66,29 +66,11 @@ class StoreIdentitasRequest extends FormRequest
                 '+' . $nomorTelepon;
         }
 
-        $nik = preg_replace(
-            '/[^0-9]/',
-            '',
-            (string) $this->input('nik')
-        );
-
         $this->merge([
             'nama_pengguna' =>
                 trim(
                     (string) $this->input(
                         'nama_pengguna'
-                    )
-                ),
-
-            'nik' =>
-                $nik,
-
-            'nomor_sim' =>
-                strtoupper(
-                    trim(
-                        (string) $this->input(
-                            'nomor_sim'
-                        )
                     )
                 ),
 
@@ -119,14 +101,6 @@ class StoreIdentitasRequest extends FormRequest
                 'min:3',
                 'max:150',
             ],
-
-            'nik' => [
-                'nullable',
-],
-
-            'nomor_sim' => [
-                     'nullable',
-],
 
             'no_telepon' => [
                 'required',
@@ -200,24 +174,6 @@ class StoreIdentitasRequest extends FormRequest
             'nama_pengguna.max' =>
                 'Nama pengguna kendaraan maksimal 150 karakter.',
 
-            'nik.required' =>
-                'NIK wajib diisi.',
-
-            'nik.digits' =>
-                'NIK harus terdiri dari tepat 16 angka.',
-
-            'nomor_sim.required' =>
-                'Nomor SIM wajib diisi.',
-
-            'nomor_sim.min' =>
-                'Nomor SIM terlalu pendek.',
-
-            'nomor_sim.max' =>
-                'Nomor SIM terlalu panjang.',
-
-            'nomor_sim.regex' =>
-                'Format nomor SIM tidak valid.',
-
             'no_telepon.required' =>
                 'Nomor telepon pengguna kendaraan wajib diisi.',
 
@@ -285,12 +241,6 @@ class StoreIdentitasRequest extends FormRequest
         return [
             'nama_pengguna' =>
                 'nama pengguna kendaraan',
-
-            'nik' =>
-                'NIK',
-
-            'nomor_sim' =>
-                'nomor SIM',
 
             'no_telepon' =>
                 'nomor telepon',

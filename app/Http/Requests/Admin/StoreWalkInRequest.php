@@ -43,14 +43,6 @@ class StoreWalkInRequest extends FormRequest
                 '+' . $nomorTelepon;
         }
 
-        $nik = preg_replace(
-            '/[^0-9]/',
-            '',
-            (string) $this->input(
-                'nik'
-            )
-        );
-
         $email = strtolower(
             trim(
                 (string) $this->input(
@@ -79,18 +71,6 @@ class StoreWalkInRequest extends FormRequest
                 trim(
                     (string) $this->input(
                         'alamat'
-                    )
-                ),
-
-            'nik' =>
-                $nik,
-
-            'nomor_sim' =>
-                strtoupper(
-                    trim(
-                        (string) $this->input(
-                            'nomor_sim'
-                        )
                     )
                 ),
 
@@ -145,19 +125,6 @@ class StoreWalkInRequest extends FormRequest
             /*
              * Identitas khusus transaksi Walk-In.
              */
-            'nik' => [
-                'required',
-                'digits:16',
-            ],
-
-            'nomor_sim' => [
-                'required',
-                'string',
-                'min:6',
-                'max:50',
-                'regex:/^[A-Z0-9\-\/\. ]+$/',
-            ],
-
             'dokumen_ktp' => [
                 'required',
                 'file',
@@ -250,24 +217,6 @@ class StoreWalkInRequest extends FormRequest
             'alamat.max' =>
                 'Alamat maksimal 1.000 karakter.',
 
-            'nik.required' =>
-                'NIK pelanggan wajib diisi.',
-
-            'nik.digits' =>
-                'NIK harus terdiri dari tepat 16 angka.',
-
-            'nomor_sim.required' =>
-                'Nomor SIM wajib diisi.',
-
-            'nomor_sim.min' =>
-                'Nomor SIM terlalu pendek.',
-
-            'nomor_sim.max' =>
-                'Nomor SIM terlalu panjang.',
-
-            'nomor_sim.regex' =>
-                'Format nomor SIM tidak valid.',
-
             'dokumen_ktp.required' =>
                 'Foto KTP wajib diunggah.',
 
@@ -350,12 +299,6 @@ class StoreWalkInRequest extends FormRequest
 
             'alamat' =>
                 'alamat pelanggan',
-
-            'nik' =>
-                'NIK',
-
-            'nomor_sim' =>
-                'nomor SIM',
 
             'dokumen_ktp' =>
                 'foto KTP',

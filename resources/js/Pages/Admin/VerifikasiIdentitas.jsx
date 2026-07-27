@@ -623,8 +623,6 @@ function VerifikasiIdentitas({
                         item.name,
                         item.email,
                         item.no_telepon,
-                        item.nik,
-                        item.nomor_sim,
                         item
                             .bookings?.[0]
                             ?.nomor_booking,
@@ -935,7 +933,7 @@ function VerifikasiIdentitas({
                                     .value,
                             )
                         }
-                        placeholder="Cari nama, NIK, nomor booking, atau kendaraan"
+                        placeholder="Cari nama, nomor booking, atau kendaraan"
                         className={`${inputClass} flex-1`}
                     />
 
@@ -1142,22 +1140,6 @@ function VerifikasiIdentitas({
                                             value={formatWaktu(
                                                 selected.identitas_dikirim_pada,
                                             )}
-                                        />
-
-                                        <InfoItem
-                                            label="NIK"
-                                            value={
-                                                selected.nik ??
-                                                '-'
-                                            }
-                                        />
-
-                                        <InfoItem
-                                            label="Nomor SIM"
-                                            value={
-                                                selected.nomor_sim ??
-                                                '-'
-                                            }
                                         />
 
                                         <InfoItem

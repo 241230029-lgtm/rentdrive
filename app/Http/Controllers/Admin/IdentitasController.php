@@ -98,12 +98,6 @@ class IdentitasController extends Controller
                     'alamat' =>
                         $identitas->alamat,
 
-                    'nik' =>
-                        $identitas->nik,
-
-                    'nomor_sim' =>
-                        $identitas->nomor_sim,
-
                     /*
                      * Status identitas transaksi.
                      */

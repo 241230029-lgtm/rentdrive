@@ -124,14 +124,6 @@ class IdentitasController extends Controller
                         $identitas
                             ?->nama_pengguna,
 
-                    'nik' =>
-                        $identitas
-                            ?->nik,
-
-                    'nomor_sim' =>
-                        $identitas
-                            ?->nomor_sim,
-
                     'no_telepon' =>
                         $identitas
                             ?->no_telepon,
@@ -315,10 +307,6 @@ class IdentitasController extends Controller
 
                     $payload = [
                          'nama_pengguna' => $data['nama_pengguna'],
-
-                        'nik' => null,
-
-                        'nomor_sim' => null,
 
                         'no_telepon' => $data['no_telepon'],
 
