@@ -15,7 +15,7 @@ use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
 use Inertia\Response;
 
-class BookingController extends Controller
+class BookingController extends Controller //// class
 {
     /**
      * BookingService menangani seluruh logika bisnis
